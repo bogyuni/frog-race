@@ -16,5 +16,8 @@ body {
   .col {
     border:1px solid red;
     padding: 0.5rem;
+    &:first-child {
+      min-width: 100px;
+    }
   }
 }
