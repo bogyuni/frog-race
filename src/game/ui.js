@@ -39,9 +39,9 @@ export function makeMusicToggle(scene, x, y) {
   const label = () => (sound.musicEnabled ? "🎵 음악 ON" : "🔇 음악 OFF");
   const text = scene.add
     .text(x, y, label(), {
-      fontFamily: FONT, fontSize: "16px",
+      fontFamily: FONT, fontSize: "22px",
       color: sound.musicEnabled ? CSS.firefly : CSS.dim,
-      backgroundColor: CSS.panel, padding: { x: 10, y: 5 },
+      backgroundColor: CSS.panelTranslucent, padding: { x: 12, y: 7 },
     })
     .setInteractive({ useHandCursor: true })
     .on("pointerup", () => {

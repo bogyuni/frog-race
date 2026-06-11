@@ -46,12 +46,10 @@ const LOOKAHEAD = 70; // 선두 앞쪽 여유 (px)
 
 /* ── 우측 사이드 패널 레이아웃 (SIDE_PANEL_W x GAME_H, 고정 UI) ── */
 const SIDE_X = TRACK_PANEL_W;
-const ROW_TOP = 46;
+const ROW_TOP = 50;
 const ROW_H = 56;
-const BANNER_Y = ROW_TOP + RULES.MAX_PLAYERS * ROW_H + 10; // 504
-const BANNER_H = 56;
-const LOG_Y = BANNER_Y + BANNER_H + 8; // 568
-const LOG_H = GAME_H - LOG_Y - 12; // 140
+const LOG_Y = ROW_TOP + RULES.MAX_PLAYERS * ROW_H + 14; // 512 — 선택 표시 배너가 중앙으로 이동해 비운 공간을 로그가 사용
+const LOG_H = GAME_H - LOG_Y - 12; // 196
 
 /* ── 미니맵 (좌측 패널 우상단, 고정 UI) ── */
 const MM_W = 204;
@@ -265,15 +263,15 @@ export default class RaceScene extends Phaser.Scene {
   buildTrackUI() {
     this.weatherText = this.addTrackUI(
       this.add.text(14, 14, "☀️ 맑음", {
-        fontFamily: FONT, fontSize: "15px", color: CSS.dim,
+        fontFamily: FONT, fontSize: "20px", color: CSS.dim,
       })
     );
 
     this.speedBtn = this.addTrackUI(
       this.add
-        .text(14, 44, "▶ x1", {
-          fontFamily: FONT, fontSize: "16px", color: CSS.dim,
-          backgroundColor: CSS.panel, padding: { x: 10, y: 5 },
+        .text(14, 50, "▶ x1", {
+          fontFamily: FONT, fontSize: "22px", color: CSS.dim,
+          backgroundColor: CSS.panelTranslucent, padding: { x: 12, y: 7 },
         })
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => {
@@ -284,21 +282,21 @@ export default class RaceScene extends Phaser.Scene {
 
     this.zoomBtn = this.addTrackUI(
       this.add
-        .text(14, 74, this.zoomedOut ? "🔍 줌인" : "🔍 줌아웃", {
-          fontFamily: FONT, fontSize: "16px", color: this.zoomedOut ? CSS.firefly : CSS.dim,
-          backgroundColor: CSS.panel, padding: { x: 10, y: 5 },
+        .text(14, 96, this.zoomedOut ? "🔍 줌인" : "🔍 줌아웃", {
+          fontFamily: FONT, fontSize: "22px", color: this.zoomedOut ? CSS.firefly : CSS.dim,
+          backgroundColor: CSS.panelTranslucent, padding: { x: 12, y: 7 },
         })
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => this.toggleZoom())
     );
 
-    this.addTrackUI(makeMusicToggle(this, 14, 104));
+    this.addTrackUI(makeMusicToggle(this, 14, 142));
 
     this.addTrackUI(
       this.add
-        .text(14, 134, "✕ 나가기", {
-          fontFamily: FONT, fontSize: "16px", color: CSS.pink,
-          backgroundColor: CSS.panel, padding: { x: 10, y: 5 },
+        .text(14, 188, "✕ 나가기", {
+          fontFamily: FONT, fontSize: "22px", color: CSS.pink,
+          backgroundColor: CSS.panelTranslucent, padding: { x: 12, y: 7 },
         })
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => {
@@ -307,8 +305,26 @@ export default class RaceScene extends Phaser.Scene {
         })
     );
 
+    this.buildCenterBanner();
     this.buildMinimap();
     this.setMinimapVisible(!this.zoomedOut);
+  }
+
+  /* 화면 정중앙에 표시되는 선택/이벤트 알림 — 등장 후 일정 시간 뒤 사라지고,
+     다음 이벤트 발생 시 다시 등장 */
+  buildCenterBanner() {
+    this.centerBanner = this.addTrackUI(
+      this.add
+        .text(GAME_W / 2, GAME_H / 2, "", {
+          fontFamily: FONT, fontSize: "40px", color: CSS.cream, fontStyle: "700",
+          align: "center", wordWrap: { width: TRACK_PANEL_W - 80 },
+          stroke: "#0A1F1A", strokeThickness: 6,
+          backgroundColor: "rgba(10, 31, 26, 0.6)", padding: { x: 28, y: 16 },
+        })
+        .setOrigin(0.5)
+        .setAlpha(0)
+        .setDepth(15)
+    );
   }
 
   toggleZoom() {
@@ -382,7 +398,7 @@ export default class RaceScene extends Phaser.Scene {
     const num = this.addTrackUI(
       this.add
         .text(TRACK_PANEL_W / 2, GAME_H / 2, "3", {
-          fontFamily: FONT, fontSize: "72px", color: CSS.firefly, fontStyle: "700",
+          fontFamily: FONT, fontSize: "104px", color: CSS.firefly, fontStyle: "700",
         })
         .setOrigin(0.5)
         .setDepth(21)
@@ -411,8 +427,8 @@ export default class RaceScene extends Phaser.Scene {
   buildSidePanel() {
     this.addSide(
       this.add
-        .text(SIDE_X + SIDE_PANEL_W / 2, 18, `🏆 연못 더비 · ${RULES.TRACK}칸`, {
-          fontFamily: FONT, fontSize: "14px", color: CSS.firefly, fontStyle: "700",
+        .text(SIDE_X + SIDE_PANEL_W / 2, 20, `🏆 연못 더비 · ${RULES.TRACK}칸`, {
+          fontFamily: FONT, fontSize: "18px", color: CSS.firefly, fontStyle: "700",
         })
         .setOrigin(0.5)
     );
@@ -423,8 +439,8 @@ export default class RaceScene extends Phaser.Scene {
     this.medalTexts = {};
     this.nameTexts = {};
 
-    const gaugeW = 4 * 11 + 9; // 53
-    const gaugeX = SIDE_PANEL_W - 12 - gaugeW - 4; // 187
+    const gaugeW = 5 * 14 + 11; // 81
+    const gaugeX = SIDE_PANEL_W - 12 - gaugeW - 4; // 149
 
     this.race.frogs.forEach((f, i) => {
       const y = ROW_TOP + i * ROW_H + ROW_H / 2;
@@ -438,13 +454,9 @@ export default class RaceScene extends Phaser.Scene {
       this.rankTexts[f.id] = this.addSide(
         this.add
           .text(SIDE_X + 10, y, "", {
-            fontFamily: FONT, fontSize: "14px", color: CSS.dim, fontStyle: "700",
+            fontFamily: FONT, fontSize: "20px", color: CSS.dim, fontStyle: "700",
           })
           .setOrigin(0, 0.5)
-      );
-
-      this.addSide(
-        this.add.image(SIDE_X + 42, y, `frog-${f.id}`).setScale(0.42)
       );
 
       const fans = this.players
@@ -453,8 +465,8 @@ export default class RaceScene extends Phaser.Scene {
         .join("");
       this.nameTexts[f.id] = this.addSide(
         this.add
-          .text(SIDE_X + 62, y, `${f.name}${fans ? ` ★${fans}` : ""}`, {
-            fontFamily: FONT, fontSize: "11px",
+          .text(SIDE_X + 46, y, `${f.name}${fans ? ` ★${fans}` : ""}`, {
+            fontFamily: FONT, fontSize: "16px",
             color: fans ? CSS.firefly : f.colorCss,
           })
           .setOrigin(0, 0.5)
@@ -467,7 +479,7 @@ export default class RaceScene extends Phaser.Scene {
           boxes.push(
             this.addSide(
               this.add
-                .rectangle(SIDE_X + gaugeX + g * 11, y, 9, 9, 0x0a1f1a)
+                .rectangle(SIDE_X + gaugeX + g * 14, y, 11, 11, 0x0a1f1a)
                 .setStrokeStyle(1, 0x3e7a64)
             )
           );
@@ -476,7 +488,7 @@ export default class RaceScene extends Phaser.Scene {
       } else {
         this.passiveTexts[f.id] = this.addSide(
           this.add
-            .text(SIDE_X + gaugeX, y, "🔷", { fontSize: "13px" })
+            .text(SIDE_X + gaugeX, y, "🔷", { fontSize: "18px" })
             .setOrigin(0, 0.5)
         );
       }
@@ -485,30 +497,13 @@ export default class RaceScene extends Phaser.Scene {
       this.medalTexts[f.id] = this.addSide(
         this.add
           .text(SIDE_X + SIDE_PANEL_W - 10, y, "", {
-            fontFamily: FONT, fontSize: "15px", color: CSS.firefly,
+            fontFamily: FONT, fontSize: "20px", color: CSS.firefly,
           })
           .setOrigin(1, 0.5)
       );
     });
 
-    this.buildBanner();
     this.buildLog();
-  }
-
-  buildBanner() {
-    this.addSide(
-      this.add
-        .rectangle(SIDE_X + SIDE_PANEL_W / 2, BANNER_Y + BANNER_H / 2, SIDE_PANEL_W - 24, BANNER_H, 0x0a1f1a)
-        .setStrokeStyle(1, 0x1e4a3d)
-    );
-    this.bannerText = this.addSide(
-      this.add
-        .text(SIDE_X + SIDE_PANEL_W / 2, BANNER_Y + BANNER_H / 2, "", {
-          fontFamily: FONT, fontSize: "13px", color: CSS.cream,
-          align: "center", wordWrap: { width: SIDE_PANEL_W - 36 },
-        })
-        .setOrigin(0.5)
-    );
   }
 
   buildLog() {
@@ -519,7 +514,7 @@ export default class RaceScene extends Phaser.Scene {
     );
     this.logText = this.addSide(
       this.add.text(SIDE_X + 22, LOG_Y + 8, "", {
-        fontFamily: FONT, fontSize: "11px", color: CSS.cream, lineSpacing: 4,
+        fontFamily: FONT, fontSize: "15px", color: CSS.cream, lineSpacing: 6,
         wordWrap: { width: SIDE_PANEL_W - 44 },
       })
     );
@@ -532,10 +527,21 @@ export default class RaceScene extends Phaser.Scene {
 
   /* ───────── 연출 헬퍼 ───────── */
 
+  // 화면 정중앙 알림: 등장(팝) → 잠시 유지 → 소멸. 다음 호출 시 다시 등장
   banner(msg, color = CSS.cream) {
-    this.bannerText.setText(msg).setColor(color).setScale(0.75);
+    const t = this.centerBanner;
+    t.setText(msg).setColor(color);
+    this.tweens.killTweensOf(t);
+    if (this.bannerHideEvent) this.bannerHideEvent.remove(false);
+
+    t.setScale(0.7).setAlpha(1);
     this.tweens.add({
-      targets: this.bannerText, scale: 1, duration: 130, ease: "Back.easeOut",
+      targets: t, scale: 1, duration: 150, ease: "Back.easeOut",
+    });
+    this.bannerHideEvent = this.time.delayedCall(1100, () => {
+      this.tweens.add({
+        targets: t, alpha: 0, scale: 0.85, duration: 250, ease: "Sine.easeIn",
+      });
     });
   }
 
@@ -556,7 +562,7 @@ export default class RaceScene extends Phaser.Scene {
     const t = this.addWorld(
       this.add
         .text(spr.x, spr.y - 26, msg, {
-          fontFamily: FONT, fontSize: "13px", color,
+          fontFamily: FONT, fontSize: "18px", color,
           stroke: "#0A1F1A", strokeThickness: 3,
         })
         .setOrigin(0.5)

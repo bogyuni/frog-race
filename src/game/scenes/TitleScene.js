@@ -30,7 +30,7 @@ export default class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    makeMusicToggle(this, GAME_W - 140, 14);
+    makeMusicToggle(this, GAME_W - 180, 14);
 
     // 출전 개구리 8종 쇼케이스 (4열 × 2행)
     const cellW = 290;

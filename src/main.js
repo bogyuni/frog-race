@@ -13,7 +13,10 @@ const boot = () =>
     width: GAME_W,
     height: GAME_H,
     backgroundColor: CSS.bg,
-    resolution: Math.max(window.devicePixelRatio || 1, 1),
+    // 고주사율(90/120Hz) 모바일 기기에서 불필요하게 자주 갱신되어 발열이
+    // 심해지는 것을 막기 위해 60fps로 제한 + 저전력 GPU 모드 사용
+    fps: { limit: 60 },
+    render: { powerPreference: "low-power" },
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,

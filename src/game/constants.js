@@ -24,6 +24,7 @@ export const CSS = {
   cream: "#F2EFE0",
   dim: "#9DB8A8",
   dark: "#0A1F1A",
+  panelTranslucent: "rgba(22, 56, 47, 0.45)",
 };
 
 export const GAME_W = 1280;
@@ -44,9 +45,9 @@ export const RULES = {
   SELECT_MOVE: 5,        // 선택 시 전진량
   GAUGE_MAX: 5,          // 스킬 게이지 최대치
   RAIN_CHANCE: 0.15,     // 선택 이벤트 시 비 발생 확률 (스펙 0.2 → 밸런스 조정)
-  RAIN_DURATION: 2,      // 비 지속 (선택 이벤트 횟수)
+  RAIN_DURATION: 3,      // 비 지속 (선택 이벤트 횟수)
   RAIN_COOLDOWN: 2,      // 비 종료 후 재발생 금지 (선택 이벤트 횟수)
-  RAIN_SLOW: 0.6,        // 비 상태 이동량 배율 (스펙 0.5 → 밸런스 조정)
+  RAIN_SLOW: 0.6,        // 비 상태 이동량 배율 (감속 효과 40%) — 비개구리 면역 패시브와 겹쳐 과도한 밸런스 붕괴 방지를 위해 원래 수치 유지
   BACKRUN_AT: 50,        // 백도 활성화 (선두 진행률)
   BACKRUN_EVERY: 4,      // 선택 이벤트 N회당 백도 1회
   BACKRUN_MOVE: 5,       // 백도 후퇴량
