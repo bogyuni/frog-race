@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>프로그레이스 - Frog Race</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0e2a24;
+        overflow: hidden;
+        height: 100%;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+      /* Phaser 캔버스가 Noto Sans KR을 쓸 수 있도록 미리 로드 */
+      .font-preload {
+        position: absolute;
+        left: -9999px;
+        font-family: "Noto Sans KR", sans-serif;
+        font-weight: 700;
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-C5F1v36w.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <span class="font-preload">프로그레이스</span>
+  </body>
+</html>

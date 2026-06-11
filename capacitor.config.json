@@ -1,0 +1,8 @@
+{
+  "appId": "com.bogyun.frograce",
+  "appName": "프로그레이스",
+  "webDir": "docs",
+  "android": {
+    "backgroundColor": "#0E2A24"
+  }
+}
