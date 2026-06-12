@@ -145,6 +145,19 @@ class SoundManager {
       this.bgmTimer = null;
     }
   }
+
+  // 앱이 백그라운드로 전환될 때 — BGM 타이머와 오디오 처리를 완전히 정지
+  suspend() {
+    this.stopBgm();
+    if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
+  }
+
+  // 포그라운드 복귀 시 — 오디오 컨텍스트 재개 + 음악 켜져 있으면 BGM 재시작
+  resume() {
+    if (!this.ctx) return;
+    if (this.ctx.state === "suspended") this.ctx.resume();
+    if (this.musicEnabled) this.startBgm();
+  }
 }
 
 export const sound = new SoundManager();

@@ -10,10 +10,13 @@ import { ensureFrogTextures } from "../frogTexture.js";
 import { sound } from "../sound.js";
 import { makeMusicToggle } from "../ui.js";
 
-/* ── 좌측 트랙 패널 레이아웃 (TRACK_PANEL_W x GAME_H, 카메라 줌/추적 대상) ── */
-const TRACK_TOP = 16;
+/* ── 좌측 트랙 패널 레이아웃 (TRACK_PANEL_W x GAME_H, 카메라 줌/추적 대상) ──
+   상단에 가로 컨트롤 바(날씨/속도/줌/음악/나가기) 공간을 확보해, 출전 개구리 수가
+   적어 레인이 두꺼워질 때(예: 2명 등록)도 출발 위치(좌측 끝) 개구리가
+   컨트롤 버튼과 겹치지 않도록 한다 */
+const TRACK_TOP = 54;
 const TRACK_BOTTOM = 16;
-const TRACK_H = GAME_H - TRACK_TOP - TRACK_BOTTOM; // 688 — 레인 수와 무관하게 트랙 전체 높이
+const TRACK_H = GAME_H - TRACK_TOP - TRACK_BOTTOM; // 650 — 레인 수와 무관하게 트랙 전체 높이
 const TRACK_L = 26;
 const TRACK_R = TRACK_PANEL_W - 56; // 840
 const MEDAL = ["🥇", "🥈", "🥉"];
@@ -44,18 +47,26 @@ const CAM_LERP = 0.06;
 const SPOTLIGHT_MS = 950;
 const LOOKAHEAD = 70; // 선두 앞쪽 여유 (px)
 
-/* ── 우측 사이드 패널 레이아웃 (SIDE_PANEL_W x GAME_H, 고정 UI) ── */
+/* ── 우측 사이드 패널 레이아웃 (SIDE_PANEL_W x GAME_H, 고정 UI) ──
+   8마리를 2열 x 4행 카드 그리드로 표시 — 1열 x 8행 대비 카드 폭/높이를
+   넉넉히 확보해 모바일에서도 이름/순위/게이지 폰트를 크게 쓸 수 있다 */
 const SIDE_X = TRACK_PANEL_W;
-const ROW_TOP = 50;
-const ROW_H = 56;
-const LOG_Y = ROW_TOP + RULES.MAX_PLAYERS * ROW_H + 14; // 512 — 선택 표시 배너가 중앙으로 이동해 비운 공간을 로그가 사용
-const LOG_H = GAME_H - LOG_Y - 12; // 196
+const SIDE_TITLE_Y = 24;
+const GRID_TOP = 58;
+const GRID_PAD = 10;
+const GRID_GAP = 8;
+const GRID_COLS = 2;
+const GRID_ROWS = 4;
+const CELL_W = (SIDE_PANEL_W - GRID_PAD * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS; // 156
+const CELL_H = 92;
+const LOG_Y = GRID_TOP + GRID_ROWS * (CELL_H + GRID_GAP) - GRID_GAP + 12; // 462
+const LOG_H = GAME_H - LOG_Y - 12; // 246
 
-/* ── 미니맵 (좌측 패널 우상단, 고정 UI) ── */
+/* ── 미니맵 (좌측 패널 우상단, 상단 컨트롤 바 아래, 고정 UI) ── */
 const MM_W = 204;
 const MM_H = 60;
 const MM_X = TRACK_PANEL_W - MM_W - 12;
-const MM_Y = 12;
+const MM_Y = TRACK_TOP + 8;
 const MM_PAD = 10;
 
 export default class RaceScene extends Phaser.Scene {
@@ -260,18 +271,34 @@ export default class RaceScene extends Phaser.Scene {
 
   /* ───────── 좌측: 고정 UI (날씨/속도버튼/미니맵/카운트다운) ───────── */
 
+  /* 상단 가로 컨트롤 바 — 날씨/속도/줌/음악/나가기를 좌측 끝부터 순서대로 배치
+     (레인 수가 적어 레인이 두꺼워져도 출발 위치의 개구리와 겹치지 않도록
+     세로 스택 대신 가로 1열로 구성) */
   buildTrackUI() {
-    this.weatherText = this.addTrackUI(
-      this.add.text(14, 14, "☀️ 맑음", {
-        fontFamily: FONT, fontSize: "20px", color: CSS.dim,
+    const BAR_Y = 27;
+    const GAP = 10;
+    const BAR_FONT = "22px";
+    const BAR_PAD = { x: 12, y: 6 };
+    let cx = 14;
+
+    const place = (obj) => {
+      obj.setOrigin(0, 0.5).setPosition(cx, BAR_Y);
+      cx += obj.width + GAP;
+      return this.addTrackUI(obj);
+    };
+
+    this.weatherText = place(
+      this.add.text(0, 0, "☀️ 맑음", {
+        fontFamily: FONT, fontSize: BAR_FONT, color: CSS.dim,
+        backgroundColor: CSS.panelTranslucent, padding: BAR_PAD,
       })
     );
 
-    this.speedBtn = this.addTrackUI(
+    this.speedBtn = place(
       this.add
-        .text(14, 50, "▶ x1", {
-          fontFamily: FONT, fontSize: "22px", color: CSS.dim,
-          backgroundColor: CSS.panelTranslucent, padding: { x: 12, y: 7 },
+        .text(0, 0, "▶ x1", {
+          fontFamily: FONT, fontSize: BAR_FONT, color: CSS.dim,
+          backgroundColor: CSS.panelTranslucent, padding: BAR_PAD,
         })
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => {
@@ -280,23 +307,23 @@ export default class RaceScene extends Phaser.Scene {
         })
     );
 
-    this.zoomBtn = this.addTrackUI(
+    this.zoomBtn = place(
       this.add
-        .text(14, 96, this.zoomedOut ? "🔍 줌인" : "🔍 줌아웃", {
-          fontFamily: FONT, fontSize: "22px", color: this.zoomedOut ? CSS.firefly : CSS.dim,
-          backgroundColor: CSS.panelTranslucent, padding: { x: 12, y: 7 },
+        .text(0, 0, this.zoomedOut ? "🔍 줌인" : "🔍 줌아웃", {
+          fontFamily: FONT, fontSize: BAR_FONT, color: this.zoomedOut ? CSS.firefly : CSS.dim,
+          backgroundColor: CSS.panelTranslucent, padding: BAR_PAD,
         })
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => this.toggleZoom())
     );
 
-    this.addTrackUI(makeMusicToggle(this, 14, 142));
+    place(makeMusicToggle(this, 0, 0, { fontSize: BAR_FONT, padding: BAR_PAD }));
 
-    this.addTrackUI(
+    place(
       this.add
-        .text(14, 188, "✕ 나가기", {
-          fontFamily: FONT, fontSize: "22px", color: CSS.pink,
-          backgroundColor: CSS.panelTranslucent, padding: { x: 12, y: 7 },
+        .text(0, 0, "✕ 나가기", {
+          fontFamily: FONT, fontSize: BAR_FONT, color: CSS.pink,
+          backgroundColor: CSS.panelTranslucent, padding: BAR_PAD,
         })
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => {
@@ -316,7 +343,7 @@ export default class RaceScene extends Phaser.Scene {
     this.centerBanner = this.addTrackUI(
       this.add
         .text(GAME_W / 2, GAME_H / 2, "", {
-          fontFamily: FONT, fontSize: "40px", color: CSS.cream, fontStyle: "700",
+          fontFamily: FONT, fontSize: "48px", color: CSS.cream, fontStyle: "700",
           align: "center", wordWrap: { width: TRACK_PANEL_W - 80 },
           stroke: "#0A1F1A", strokeThickness: 6,
           backgroundColor: "rgba(10, 31, 26, 0.6)", padding: { x: 28, y: 16 },
@@ -427,8 +454,8 @@ export default class RaceScene extends Phaser.Scene {
   buildSidePanel() {
     this.addSide(
       this.add
-        .text(SIDE_X + SIDE_PANEL_W / 2, 20, `🏆 연못 더비 · ${RULES.TRACK}칸`, {
-          fontFamily: FONT, fontSize: "18px", color: CSS.firefly, fontStyle: "700",
+        .text(SIDE_X + SIDE_PANEL_W / 2, SIDE_TITLE_Y, `🏆 연못 더비 · ${RULES.TRACK}칸`, {
+          fontFamily: FONT, fontSize: "22px", color: CSS.firefly, fontStyle: "700",
         })
         .setOrigin(0.5)
     );
@@ -439,24 +466,18 @@ export default class RaceScene extends Phaser.Scene {
     this.medalTexts = {};
     this.nameTexts = {};
 
-    const gaugeW = 5 * 14 + 11; // 81
-    const gaugeX = SIDE_PANEL_W - 12 - gaugeW - 4; // 149
+    const gaugeW = 5 * 15 - 3; // 72 — 12px 박스 + 3px 간격 x4
 
     this.race.frogs.forEach((f, i) => {
-      const y = ROW_TOP + i * ROW_H + ROW_H / 2;
+      const col = i % GRID_COLS;
+      const row = Math.floor(i / GRID_COLS);
+      const cx0 = SIDE_X + GRID_PAD + col * (CELL_W + GRID_GAP);
+      const cy0 = GRID_TOP + row * (CELL_H + GRID_GAP);
 
-      if (i % 2 === 0) {
-        this.addSide(
-          this.add.rectangle(SIDE_X + SIDE_PANEL_W / 2, y, SIDE_PANEL_W - 12, ROW_H - 4, 0xffffff, 0.025)
-        );
-      }
-
-      this.rankTexts[f.id] = this.addSide(
+      this.addSide(
         this.add
-          .text(SIDE_X + 10, y, "", {
-            fontFamily: FONT, fontSize: "20px", color: CSS.dim, fontStyle: "700",
-          })
-          .setOrigin(0, 0.5)
+          .rectangle(cx0 + CELL_W / 2, cy0 + CELL_H / 2, CELL_W, CELL_H, 0xffffff, 0.025)
+          .setStrokeStyle(1, 0x1e4a3d)
       );
 
       const fans = this.players
@@ -465,21 +486,30 @@ export default class RaceScene extends Phaser.Scene {
         .join("");
       this.nameTexts[f.id] = this.addSide(
         this.add
-          .text(SIDE_X + 46, y, `${f.name}${fans ? ` ★${fans}` : ""}`, {
-            fontFamily: FONT, fontSize: "16px",
+          .text(cx0 + 10, cy0 + 8, `${f.name}${fans ? ` ★${fans}` : ""}`, {
+            fontFamily: FONT, fontSize: "19px", fontStyle: "700",
             color: fans ? CSS.firefly : f.colorCss,
+            wordWrap: { width: CELL_W - 20 }, lineSpacing: 2,
           })
-          .setOrigin(0, 0.5)
       );
 
-      // 스킬 게이지 (액티브) / 패시브 뱃지
+      this.rankTexts[f.id] = this.addSide(
+        this.add
+          .text(cx0 + 10, cy0 + CELL_H - 12, "", {
+            fontFamily: FONT, fontSize: "20px", color: CSS.dim, fontStyle: "700",
+          })
+          .setOrigin(0, 1)
+      );
+
+      // 스킬 게이지 (액티브) / 패시브 뱃지 — 카드 우하단
       if (f.skillType === "active") {
         const boxes = [];
+        const gaugeX = cx0 + CELL_W - gaugeW - 10;
         for (let g = 0; g < (f.gaugeMax || RULES.GAUGE_MAX); g++) {
           boxes.push(
             this.addSide(
               this.add
-                .rectangle(SIDE_X + gaugeX + g * 14, y, 11, 11, 0x0a1f1a)
+                .rectangle(gaugeX + g * 15, cy0 + CELL_H - 17, 12, 12, 0x0a1f1a)
                 .setStrokeStyle(1, 0x3e7a64)
             )
           );
@@ -488,18 +518,17 @@ export default class RaceScene extends Phaser.Scene {
       } else {
         this.passiveTexts[f.id] = this.addSide(
           this.add
-            .text(SIDE_X + gaugeX, y, "🔷", { fontSize: "18px" })
-            .setOrigin(0, 0.5)
+            .text(cx0 + CELL_W - 32, cy0 + CELL_H - 28, "🔷", { fontSize: "24px" })
         );
       }
 
-      // 골인 메달
+      // 골인 메달 — 카드 우상단
       this.medalTexts[f.id] = this.addSide(
         this.add
-          .text(SIDE_X + SIDE_PANEL_W - 10, y, "", {
-            fontFamily: FONT, fontSize: "20px", color: CSS.firefly,
+          .text(cx0 + CELL_W - 8, cy0 + 8, "", {
+            fontFamily: FONT, fontSize: "22px", color: CSS.firefly,
           })
-          .setOrigin(1, 0.5)
+          .setOrigin(1, 0)
       );
     });
 
@@ -509,19 +538,19 @@ export default class RaceScene extends Phaser.Scene {
   buildLog() {
     this.addSide(
       this.add
-        .rectangle(SIDE_X + SIDE_PANEL_W / 2, LOG_Y + LOG_H / 2, SIDE_PANEL_W - 24, LOG_H, 0x0a1f1a)
+        .rectangle(SIDE_X + SIDE_PANEL_W / 2, LOG_Y + LOG_H / 2, SIDE_PANEL_W - 20, LOG_H, 0x0a1f1a)
         .setStrokeStyle(1, 0x1e4a3d)
     );
     this.logText = this.addSide(
-      this.add.text(SIDE_X + 22, LOG_Y + 8, "", {
-        fontFamily: FONT, fontSize: "15px", color: CSS.cream, lineSpacing: 6,
-        wordWrap: { width: SIDE_PANEL_W - 44 },
+      this.add.text(SIDE_X + 18, LOG_Y + 10, "", {
+        fontFamily: FONT, fontSize: "20px", color: CSS.cream, lineSpacing: 8,
+        wordWrap: { width: SIDE_PANEL_W - 36 },
       })
     );
 
     // 박스를 벗어난 텍스트는 가려지도록 클리핑 마스크 적용
     const maskShape = this.make.graphics({}, false);
-    maskShape.fillRect(SIDE_X + 12, LOG_Y, SIDE_PANEL_W - 24, LOG_H);
+    maskShape.fillRect(SIDE_X + 10, LOG_Y, SIDE_PANEL_W - 20, LOG_H);
     this.logText.setMask(maskShape.createGeometryMask());
   }
 
@@ -547,7 +576,7 @@ export default class RaceScene extends Phaser.Scene {
 
   pushLog(msg) {
     this.logs.unshift(msg);
-    this.logs = this.logs.slice(0, 8);
+    this.logs = this.logs.slice(0, 6);
     this.logText.setText(this.logs.join("\n"));
   }
 
@@ -562,7 +591,7 @@ export default class RaceScene extends Phaser.Scene {
     const t = this.addWorld(
       this.add
         .text(spr.x, spr.y - 26, msg, {
-          fontFamily: FONT, fontSize: "18px", color,
+          fontFamily: FONT, fontSize: "22px", color,
           stroke: "#0A1F1A", strokeThickness: 3,
         })
         .setOrigin(0.5)

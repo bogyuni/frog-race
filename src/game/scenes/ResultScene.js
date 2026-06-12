@@ -30,12 +30,12 @@ export default class ResultScene extends Phaser.Scene {
     /* ── 좌측: 우승 연출 ── */
     this.add
       .text(leftCx, 46, "🏁 레이스 결과", {
-        fontFamily: FONT, fontSize: "24px", color: CSS.dim,
+        fontFamily: FONT, fontSize: "28px", color: CSS.dim,
       })
       .setOrigin(0.5);
     this.add
-      .text(leftCx, 102, `${winner.name} 우승!`, {
-        fontFamily: FONT, fontSize: "38px", color: CSS.firefly, fontStyle: "700",
+      .text(leftCx, 104, `${winner.name} 우승!`, {
+        fontFamily: FONT, fontSize: "42px", color: CSS.firefly, fontStyle: "700",
       })
       .setOrigin(0.5);
 
@@ -53,7 +53,7 @@ export default class ResultScene extends Phaser.Scene {
         .rectangle(x, podiumY + 40 - h / 2, 96, h, 0x1e4a3d)
         .setStrokeStyle(1, 0x3e7a64);
       this.add
-        .text(x, podiumY + 40 - h + 16, MEDALS[rank - 1], { fontSize: "20px" })
+        .text(x, podiumY + 40 - h + 16, MEDALS[rank - 1], { fontSize: "24px" })
         .setOrigin(0.5);
       const spr = this.add.image(x, podiumY - h + 14, `frog-${r.id}`).setScale(rank === 1 ? 1.2 : 1.0);
       if (rank === 1) {
@@ -63,8 +63,8 @@ export default class ResultScene extends Phaser.Scene {
         });
       }
       this.add
-        .text(x, podiumY + 54, r.name, {
-          fontFamily: FONT, fontSize: "16px", color: r.colorCss,
+        .text(x, podiumY + 56, r.name, {
+          fontFamily: FONT, fontSize: "20px", color: r.colorCss, fontStyle: "700",
         })
         .setOrigin(0.5);
     });
@@ -74,7 +74,7 @@ export default class ResultScene extends Phaser.Scene {
     if (this.players.length > 0) {
       this.add
         .text(leftCx, cheerTop, "─ 응원 결과 ─", {
-          fontFamily: FONT, fontSize: "15px", color: CSS.dim,
+          fontFamily: FONT, fontSize: "18px", color: CSS.dim,
         })
         .setOrigin(0.5);
       this.players.forEach((p, i) => {
@@ -85,10 +85,10 @@ export default class ResultScene extends Phaser.Scene {
         const won = rank === 1;
         this.add
           .text(
-            leftCx - 150 + col * 300, cheerTop + 36 + row * 30,
+            leftCx - 150 + col * 300, cheerTop + 40 + row * 36,
             `${p.label} ★${c.name} → ${rank}위 ${won ? "🎉" : ""}`,
             {
-              fontFamily: FONT, fontSize: "15px",
+              fontFamily: FONT, fontSize: "18px",
               color: won ? CSS.firefly : CSS.cream,
             }
           )
@@ -97,7 +97,7 @@ export default class ResultScene extends Phaser.Scene {
     } else {
       this.add
         .text(leftCx, cheerTop, "관전 모드", {
-          fontFamily: FONT, fontSize: "15px", color: CSS.dim,
+          fontFamily: FONT, fontSize: "18px", color: CSS.dim,
         })
         .setOrigin(0.5);
     }
@@ -105,14 +105,14 @@ export default class ResultScene extends Phaser.Scene {
     /* ── 우측: 전체 순위 + 버튼 ── */
     this.add
       .text(rightCx, 46, "최종 순위", {
-        fontFamily: FONT, fontSize: "24px", color: CSS.dim,
+        fontFamily: FONT, fontSize: "28px", color: CSS.dim,
       })
       .setOrigin(0.5);
 
     const listLeft = rightCx - 230;
     const listRight = rightCx + 230;
-    const rowH = 58;
-    const rowTop = 90;
+    const rowH = 64;
+    const rowTop = 92;
     this.ranks.forEach((r, i) => {
       const y = rowTop + i * rowH;
       if (i % 2 === 0) {
@@ -122,13 +122,13 @@ export default class ResultScene extends Phaser.Scene {
       }
       this.add
         .text(listLeft + 4, y, i < 3 ? MEDALS[i] : `${i + 1}위`, {
-          fontFamily: FONT, fontSize: "18px", color: CSS.cream,
+          fontFamily: FONT, fontSize: "22px", color: CSS.cream,
         })
         .setOrigin(0, 0.5);
-      this.add.image(listLeft + 64, y, `frog-${r.id}`).setScale(0.6);
+      this.add.image(listLeft + 70, y, `frog-${r.id}`).setScale(0.7);
       this.add
-        .text(listLeft + 100, y, r.name, {
-          fontFamily: FONT, fontSize: "18px", color: r.colorCss, fontStyle: "700",
+        .text(listLeft + 108, y, r.name, {
+          fontFamily: FONT, fontSize: "22px", color: r.colorCss, fontStyle: "700",
         })
         .setOrigin(0, 0.5);
 
@@ -136,26 +136,26 @@ export default class ResultScene extends Phaser.Scene {
       if (cheerers.length > 0) {
         this.add
           .text(listRight - 4, y, `★ ${cheerers.join(" ")}`, {
-            fontFamily: FONT, fontSize: "14px", color: i === 0 ? CSS.firefly : CSS.dim,
+            fontFamily: FONT, fontSize: "17px", color: i === 0 ? CSS.firefly : CSS.dim,
           })
           .setOrigin(1, 0.5);
       }
     });
 
     // 버튼 3개 가로 배치
-    const btnY = rowTop + this.ranks.length * rowH + 36;
+    const btnY = rowTop + this.ranks.length * rowH + 38;
     const btnW = 180;
     const btnGap = 20;
     const colX = (i) => rightCx - (3 * btnW + 2 * btnGap) / 2 + i * (btnW + btnGap) + btnW / 2;
 
     makeButton(this, colX(0), btnY, btnW, 56, "🔁 다시!", () => {
       this.scene.start("Race");
-    }, { fontSize: "17px" });
+    }, { fontSize: "20px" });
     makeButton(this, colX(1), btnY, btnW, 56, "👥 참가자 등록", () => {
       this.scene.start("Lobby");
-    }, { ghost: true, fontSize: "15px" });
+    }, { ghost: true, fontSize: "18px" });
     makeButton(this, colX(2), btnY, btnW, 56, "처음 화면", () => {
       this.scene.start("Title");
-    }, { ghost: true, fontSize: "15px" });
+    }, { ghost: true, fontSize: "18px" });
   }
 }

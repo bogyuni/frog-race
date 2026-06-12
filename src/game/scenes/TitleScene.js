@@ -26,15 +26,15 @@ export default class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.add
       .text(cx, 78, `FROG RACE · ${RULES.TRACK}칸 랜덤 레이스`, {
-        fontFamily: FONT, fontSize: "14px", color: CSS.dim,
+        fontFamily: FONT, fontSize: "18px", color: CSS.dim,
       })
       .setOrigin(0.5);
 
-    makeMusicToggle(this, GAME_W - 180, 14);
+    makeMusicToggle(this, GAME_W - 210, 12);
 
     // 출전 개구리 8종 쇼케이스 (4열 × 2행)
-    const cellW = 290;
-    const cellH = 148;
+    const cellW = 300;
+    const cellH = 168;
     const gap = 10;
     const gridTop = 110;
     const startX = cx - (4 * cellW + 3 * gap) / 2;
@@ -47,33 +47,33 @@ export default class TitleScene extends Phaser.Scene {
       this.add
         .rectangle(x, y, cellW, cellH, 0x16382f)
         .setStrokeStyle(1, 0x1e4a3d);
-      const frog = this.add.image(x - cellW / 2 + 38, y - 8, `frog-${c.id}`).setScale(1.05);
+      const frog = this.add.image(x - cellW / 2 + 40, y - 18, `frog-${c.id}`).setScale(1.05);
       this.tweens.add({
-        targets: frog, y: y - 16,
+        targets: frog, y: y - 26,
         duration: 550 + (i % 4) * 110,
         yoyo: true, repeat: -1, ease: "Sine.easeInOut",
       });
-      this.add.text(x - cellW / 2 + 76, y - 50, c.name, {
-        fontFamily: FONT, fontSize: "18px", color: CSS.cream, fontStyle: "700",
+      this.add.text(x - cellW / 2 + 80, y - 62, c.name, {
+        fontFamily: FONT, fontSize: "21px", color: CSS.cream, fontStyle: "700",
       });
-      this.add.text(x - cellW / 2 + 76, y - 24, `${c.skillType === "active" ? "🔶" : "🔷"} ${c.skillName}`, {
-        fontFamily: FONT, fontSize: "13px", color: c.colorCss,
+      this.add.text(x - cellW / 2 + 80, y - 34, `${c.skillType === "active" ? "🔶" : "🔷"} ${c.skillName}`, {
+        fontFamily: FONT, fontSize: "15px", color: c.colorCss,
       });
-      this.add.text(x - cellW / 2 + 14, y + 6, c.skillDesc, {
-        fontFamily: FONT, fontSize: "12px", color: CSS.dim,
-        wordWrap: { width: cellW - 28 }, lineSpacing: 3,
+      this.add.text(x - cellW / 2 + 14, y + 4, c.skillDesc, {
+        fontFamily: FONT, fontSize: "14px", color: CSS.dim,
+        wordWrap: { width: cellW - 28 }, lineSpacing: 4,
       });
     });
 
     const legendY = gridTop + 2 * cellH + gap + 18;
     this.add
       .text(cx, legendY, "🔶 액티브: 게이지 5 모은 뒤 선택되면 발동  ·  🔷 패시브: 상시 적용", {
-        fontFamily: FONT, fontSize: "13px", color: CSS.dim,
+        fontFamily: FONT, fontSize: "16px", color: CSS.dim,
       })
       .setOrigin(0.5);
 
     // 버튼 3개 가로 배치
-    const btnY = legendY + 50;
+    const btnY = legendY + 52;
     const btnW = 380;
     const btnGap = 20;
     const colX = (i) => cx - (3 * btnW + 2 * btnGap) / 2 + i * (btnW + btnGap) + btnW / 2;
@@ -83,12 +83,12 @@ export default class TitleScene extends Phaser.Scene {
       this.registry.set("mode", "quick");
       this.registry.set("players", [{ label: "P1", frogId }]);
       this.scene.start("Race");
-    }, { fontSize: "22px" });
+    }, { fontSize: "26px" });
 
     makeButton(
       this, colX(1), btnY, btnW, 70, "👥 참가자 등록 (1~8명)",
       () => this.scene.start("Lobby"),
-      { ghost: true, fontSize: "20px" }
+      { ghost: true, fontSize: "24px" }
     );
 
     makeButton(
@@ -101,7 +101,7 @@ export default class TitleScene extends Phaser.Scene {
           }, 0);
         });
       },
-      { ghost: true, fontSize: "16px" }
+      { ghost: true, fontSize: "20px" }
     );
   }
 }

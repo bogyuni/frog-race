@@ -35,6 +35,20 @@
 - 비개구리 스킬 추가 버프(이동 3배 등)는 보류 — 위와 같은 이유로 3차례 시도 모두 밸런스 붕괴, 현재 스킬("비 감속 무시")만 유지
 - 검증: `node scripts/sim-race.mjs`, `scripts/check-mobile-ui.mjs`(신규), `scripts/check-race.mjs` 모두 통과
 
+## 모바일 UI 개선 2차 (2026-06-12)
+사용자 피드백("모바일 개선이 전혀 되지 않았다") 반영, 3개 항목 작업:
+1. **안드로이드 상태바 노출**: `MainActivity.java`에서 `onCreate`뿐 아니라 `onResume`/`onWindowFocusChanged`에서도
+   `WindowInsetsControllerCompat.hide(WindowInsetsCompat.Type.systemBars())`를 재적용 (포커스 복귀/회전 시 재노출 방지).
+   `styles.xml`의 실제 액티비티 테마 `AppTheme.NoActionBarLaunch`에 `windowActionBar=false`/`windowNoTitle=true`/`windowFullscreen=true` 추가.
+2. **텍스트/레이아웃 재정립**: `SIDE_PANEL_W` 256→340 (`TRACK_PANEL_W` 940). RaceScene 우측 패널을 1열x8행 → 2열x4행 카드 그리드로 재구성해
+   이름/순위/게이지 폰트를 키울 공간 확보. 좌측 상단 컨트롤(날씨/속도/줌/음악/나가기)을 세로 스택 → 상단 가로 1열 바로 재배치
+   — 참가자 등록(2~4명) 시 레인이 두꺼워지면 출발 위치(좌측 끝)의 개구리가 좌측 상단 컨트롤과 겹치던 문제 해결
+   (`TRACK_TOP` 16→54로 상단 바 공간 확보, 미니맵도 바 아래로 이동). Title/Result/Lobby 전반 폰트·간격 확대.
+3. **로비 개구리 선택 화면 재설계**: 4x2 즉시선택 → 좌(50%) 포커스된 개구리의 큰 이미지+설명, 우(50%) 2x4 이름 그리드(탭 = 포커스 이동)
+   + 하단 "✅ {이름} 선택" 확정 버튼으로 변경 (`LobbyScene.showPickStep`).
+- 검증: `node scripts/sim-race.mjs`(밸런스 영향 없음 확인), `scripts/check-mobile2.mjs`(1280x720 + 844x390 양쪽 플로우),
+  `scripts/check-mobile-result.mjs`(결과 화면) 신규 추가, 모두 통과
+
 ## 현재 레이스 룰 (스펙 v1.0 — `src/game/RaceEngine.js`)
 ```
 트랙 100칸, 8마리 전원 출전, 모든 개구리 지속 전진 (2칸/초 ± 흔들림)
@@ -73,7 +87,19 @@ src/game/scenes/             Title / Lobby(참가자 등록) / Race / Result 씬
 src/game-v0-backup/          구버전(10칸 턴제) 백업
 scripts/sim-race.mjs         엔진 시뮬레이션 테스트
 scripts/check-race.mjs       Playwright 헤드리스 플로우 검증 (dev 서버 필요)
+scripts/check-mobile-ui.mjs  모바일 UI(1차) 검증
+scripts/check-mobile2.mjs    모바일 UI(2차) 검증 — 로비 픽 단계(좌/우 분할) 포함, 1280x720 + 844x390
+scripts/check-mobile-result.mjs  결과(Result) 화면 레이아웃 검증 (4배속으로 결과까지 진행)
 ```
+
+## 코딩 규칙 — 모바일 최적화 (가로 모드 기준)
+
+- 방향: 가로 모드(Landscape) 전용, 세로 모드 무시
+- 폰트: 본문 최소 16px, 버튼 18px 이상, 제목 22px 이상 / px 대신 vw·rem 사용
+- 터치 타겟: 버튼 최소 높이 48px, 간격 8px 이상
+- 캔버스: 1280×720 (16:9) 고정, Phaser ScaleManager FIT + autoCenter로 실제 기기 해상도에 맞춰 축소/중앙 정렬
+- 검증 기준: Chrome DevTools Pixel 7 가로 / iPhone 14 가로 에뮬레이터
+
 
 ## (보류) 구 육성 시스템 구조 — prototype 참고용
 ```

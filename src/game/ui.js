@@ -35,13 +35,13 @@ export function makeButton(scene, x, y, w, h, label, onClick, opts = {}) {
 }
 
 // 음악 on/off 토글 버튼 (기본 off) — 좌측 상단 버튼들과 동일한 스타일
-export function makeMusicToggle(scene, x, y) {
+export function makeMusicToggle(scene, x, y, opts = {}) {
   const label = () => (sound.musicEnabled ? "🎵 음악 ON" : "🔇 음악 OFF");
   const text = scene.add
     .text(x, y, label(), {
-      fontFamily: FONT, fontSize: "22px",
+      fontFamily: FONT, fontSize: opts.fontSize || "26px",
       color: sound.musicEnabled ? CSS.firefly : CSS.dim,
-      backgroundColor: CSS.panelTranslucent, padding: { x: 12, y: 7 },
+      backgroundColor: CSS.panelTranslucent, padding: opts.padding || { x: 14, y: 8 },
     })
     .setInteractive({ useHandCursor: true })
     .on("pointerup", () => {
