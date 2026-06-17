@@ -30,11 +30,11 @@ export const CSS = {
 export const GAME_W = 1280;
 export const GAME_H = 720;
 
-/* ── 레이스 화면 레이아웃 (16:9, 좌:우 ≈ 73.4:26.6) ──
-   모바일 실기기(가로 854x... 등)에서 FIT 축소 시 우측 패널 텍스트가
-   너무 작아지는 것을 보완하기 위해 사이드패널 폭을 256→340으로 확대 */
-export const SIDE_PANEL_W = 340;                       // 우측 선택UI/상태
-export const TRACK_PANEL_W = GAME_W - SIDE_PANEL_W;    // 940 — 좌측 레이스 트랙
+/* ── 레이스 화면 레이아웃 (16:9) ──
+   Excitebike 스타일 재설계(2026-06-14): 경기장(좌측 트랙)을 더 크게 쓰기 위해
+   우측 실황 패널을 340→264로 축소. 패널은 1열 컴팩트 리더보드로 운용 */
+export const SIDE_PANEL_W = 264;                       // 우측 실황(리더보드/로그)
+export const TRACK_PANEL_W = GAME_W - SIDE_PANEL_W;    // 1016 — 좌측 레이스 트랙
 
 export const FONT = "'Noto Sans KR', sans-serif";
 

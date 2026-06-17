@@ -11,6 +11,9 @@ node_modules
 dist-ssr
 *.local
 
+# 알림 웹훅 설정 (비밀)
+.notify.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

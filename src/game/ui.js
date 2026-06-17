@@ -1,6 +1,16 @@
 // 공용 UI 헬퍼
-import { CSS, FONT } from "./constants.js";
+import { CSS, FONT, GAME_W, GAME_H } from "./constants.js";
 import { sound } from "./sound.js";
+
+// 고해상도 대응: 단일 카메라 씬에서 호출. 백킹 해상도(GAME_W*RS)에 맞춰
+// 메인 카메라를 RS배 줌하고 논리 영역(1280x720)을 중앙에 매핑 → 좌표는 그대로 쓰되 선명하게 렌더.
+export function applyHiDPI(scene) {
+  const S = scene.scale.width / GAME_W;
+  if (S === 1) return;
+  const cam = scene.cameras.main;
+  cam.setZoom(S);
+  cam.centerOn(GAME_W / 2, GAME_H / 2);
+}
 
 export function makeButton(scene, x, y, w, h, label, onClick, opts = {}) {
   const bgColor = opts.ghost ? 0x000000 : 0xffd95e;

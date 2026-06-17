@@ -30,7 +30,9 @@ async function run(viewport, prefix) {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `scripts/${prefix}-1-title.png` });
 
-  await clickCanvas(640, 526); // 👥 참가자 등록
+  await clickCanvas(640, 526); // 👥 참가자 등록 → 로비(모드 선택)
+  await page.waitForTimeout(700);
+  await clickCanvas(640, 300); // 모드 선택: 참가자 등록
   await page.waitForTimeout(800);
   await page.screenshot({ path: `scripts/${prefix}-2-lobby-count.png` });
 

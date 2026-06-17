@@ -1,0 +1,59 @@
+GIMP Palette
+Name: Frog Race 16bit
+Columns: 8
+#
+ 45 118  55	tree-darker
+ 59 154  72	tree-dark
+ 78 203  95	tree-base
+128 218 140	tree-light
+ 97  71  46	toad-darker
+128  93  60	toad-dark
+168 123  79	toad-base
+192 160 128	toad-light
+126 117  52	maeng-darker
+165 153  68	maeng-dark
+217 201  90	maeng-base
+228 216 136	maeng-light
+ 46  97 117	rain-darker
+ 60 128 153	rain-dark
+ 79 168 201	rain-base
+128 192 216	rain-light
+117  67  37	horn-darker
+153  88  48	horn-dark
+201 116  63	horn-base
+216 155 117	horn-light
+ 55  92  45	fire-darker
+ 72 120  59	fire-dark
+ 95 158  78	fire-base
+140 185 128	fire-light
+117  97  93	claw-darker
+153 128 122	claw-dark
+201 168 160	claw-base
+216 192 187	claw-light
+ 83 111  46	wood-darker
+109 145  60	wood-dark
+143 191  79	wood-base
+174 209 128	wood-light
+ 20  20  15	env-outline
+ 26  26  26	env-ink
+255 255 255	env-white
+242 239 224	env-cream
+ 10  31  26	env-bgDeep
+ 14  42  36	env-bg
+ 22  56  47	env-panel
+ 30  74  61	env-panelLight
+ 37 101 112	env-waterDark
+ 62 142 158	env-water
+111 192 206	env-waterLight
+207 238 250	env-waterFoam
+ 62 122 100	env-lilyDark
+111 191 115	env-lily
+159 224  96	env-lilyLight
+107  74  46	env-dirtDark
+154 107  62	env-dirt
+199 154  94	env-dirtLight
+255 217  94	env-firefly
+224 169  58	env-gold
+255 143 163	env-pink
+255 107  74	env-ember
+157 184 168	env-dim

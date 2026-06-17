@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { CSS, FONT, GAME_W, GAME_H, CHARACTERS } from "../constants.js";
 import { ensureFrogTextures } from "../frogTexture.js";
-import { makeButton } from "../ui.js";
+import { makeButton, applyHiDPI } from "../ui.js";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -16,6 +16,7 @@ export default class ResultScene extends Phaser.Scene {
   }
 
   create() {
+    applyHiDPI(this);
     ensureFrogTextures(this, CHARACTERS);
     const winner = this.ranks[0];
 

@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { CSS, FONT, GAME_W, GAME_H, CHARACTERS, RULES } from "../constants.js";
 import { ensureFrogTextures } from "../frogTexture.js";
-import { makeButton, makeMusicToggle } from "../ui.js";
+import { makeButton, makeMusicToggle, applyHiDPI } from "../ui.js";
 
 export default class TitleScene extends Phaser.Scene {
   constructor() {
@@ -9,6 +9,7 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   create() {
+    applyHiDPI(this);
     ensureFrogTextures(this, CHARACTERS);
     const cx = GAME_W / 2;
 

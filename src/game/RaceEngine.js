@@ -17,6 +17,9 @@ export function createRace(characters) {
   return {
     frogs: characters.map((c, i) => ({
       ...c,
+      // 고유 런타임 id — 같은 캐릭터 복수 출전(단일 개구리 모드) 시 렌더/상태 키 충돌 방지.
+      // 스킬/날씨 판정은 캐릭터 id(c.id)를 그대로 사용한다.
+      uid: c.uid || `${c.id}#${i}`,
       lane: i,
       pos: 0,
       gauge: 0,

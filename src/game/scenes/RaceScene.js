@@ -10,63 +10,71 @@ import { ensureFrogTextures } from "../frogTexture.js";
 import { sound } from "../sound.js";
 import { makeMusicToggle } from "../ui.js";
 
-/* ── 좌측 트랙 패널 레이아웃 (TRACK_PANEL_W x GAME_H, 카메라 줌/추적 대상) ──
-   상단에 가로 컨트롤 바(날씨/속도/줌/음악/나가기) 공간을 확보해, 출전 개구리 수가
-   적어 레인이 두꺼워질 때(예: 2명 등록)도 출발 위치(좌측 끝) 개구리가
-   컨트롤 버튼과 겹치지 않도록 한다 */
+/* ────────────────────────────────────────────────────────────────────────
+   Excitebike 스타일 레이아웃 (2026-06-14)
+   - 측면 뷰 + 레인 간 원근감(앞 레인=크고 가깝게 / 뒤 레인=작고 멀게, 간격 좁게)
+   - 월드(트랙) 픽셀 길이 2배 — 카메라가 선두 개구리를 따라 가로 스크롤
+   - 상단 수평선(하늘/갈대) 패럴랙스 + 개구리 점프 애니메이션 + 물보라 잔효과
+   - 레인 순서 랜덤, 단일 개구리(같은 종 복수) 모드 지원 (키는 uid 기준)
+   ──────────────────────────────────────────────────────────────────────── */
+
 const TRACK_TOP = 54;
-const TRACK_BOTTOM = 16;
-const TRACK_H = GAME_H - TRACK_TOP - TRACK_BOTTOM; // 650 — 레인 수와 무관하게 트랙 전체 높이
-const TRACK_L = 26;
-const TRACK_R = TRACK_PANEL_W - 56; // 840
+const HORIZON_H = 110;
+const TRACK_AREA_TOP = TRACK_TOP + HORIZON_H;
+const TRACK_BOTTOM = 14;
+const TRACK_AREA_H = GAME_H - TRACK_AREA_TOP - TRACK_BOTTOM;
+
+const WORLD_PAD_L = 70;
+const PX_PER_CELL = 17;
+const WORLD_LEN = RULES.TRACK * PX_PER_CELL; // 1700
+const TRACK_L = WORLD_PAD_L;
+const TRACK_R = WORLD_PAD_L + WORLD_LEN;
+const WORLD_W = TRACK_R + 130;
+
+// 레인 원근 (간격 더 좁히고 대비 강화 → 원근감↑)
+const BACK_SCALE = 0.64;
+const FRONT_SCALE = 1.52;
+const LANE_FILL = 0.9;            // 레인 묶음이 차지하는 세로 비율(작을수록 모임)
+const FROG_BASE = 1.3;
+
+const ZOOM_NORMAL = 1.0;
+const ZOOM_WIDE = 0.82;
+const LOOKAHEAD = 80;
+
 const MEDAL = ["🥇", "🥈", "🥉"];
+const xFor = (pos) => TRACK_L + (pos / RULES.TRACK) * WORLD_LEN;
 
-const xFor = (pos) => TRACK_L + (pos / RULES.TRACK) * (TRACK_R - TRACK_L);
-
-// 참가자 등록 모드: 선택된(중복 제외) 개구리 + 부족분은 랜덤으로 채워 "참가자 수" 만큼 출전
 function buildRoster(players) {
   const ids = [];
-  for (const p of players) {
-    if (!ids.includes(p.frogId)) ids.push(p.frogId);
-  }
+  for (const p of players) if (!ids.includes(p.frogId)) ids.push(p.frogId);
   if (ids.length < players.length) {
-    const remaining = CHARACTERS.filter((c) => !ids.includes(c.id))
-      .sort(() => Math.random() - 0.5);
-    while (ids.length < players.length && remaining.length) {
-      ids.push(remaining.pop().id);
-    }
+    const remaining = CHARACTERS.filter((c) => !ids.includes(c.id)).sort(() => Math.random() - 0.5);
+    while (ids.length < players.length && remaining.length) ids.push(remaining.pop().id);
   }
   return ids.map((id) => CHARACTERS.find((c) => c.id === id));
 }
 
-/* ── 카메라 연출 ── */
-const ZOOM_BASE = 1.15;
-const ZOOM_SPOTLIGHT = 1.6;
-const ZOOM_OUT = 0.95; // 줌아웃: 트랙 전체 조망
-const CAM_LERP = 0.06;
-const SPOTLIGHT_MS = 950;
-const LOOKAHEAD = 70; // 선두 앞쪽 여유 (px)
+const lerp = (a, b, t) => a + (b - a) * t;
+function lerpColor(c1, c2, t) {
+  const a = Phaser.Display.Color.IntegerToColor(c1);
+  const b = Phaser.Display.Color.IntegerToColor(c2);
+  return Phaser.Display.Color.GetColor(
+    Math.round(lerp(a.red, b.red, t)),
+    Math.round(lerp(a.green, b.green, t)),
+    Math.round(lerp(a.blue, b.blue, t))
+  );
+}
 
-/* ── 우측 사이드 패널 레이아웃 (SIDE_PANEL_W x GAME_H, 고정 UI) ──
-   8마리를 2열 x 4행 카드 그리드로 표시 — 1열 x 8행 대비 카드 폭/높이를
-   넉넉히 확보해 모바일에서도 이름/순위/게이지 폰트를 크게 쓸 수 있다 */
 const SIDE_X = TRACK_PANEL_W;
-const SIDE_TITLE_Y = 24;
-const GRID_TOP = 58;
-const GRID_PAD = 10;
-const GRID_GAP = 8;
-const GRID_COLS = 2;
-const GRID_ROWS = 4;
-const CELL_W = (SIDE_PANEL_W - GRID_PAD * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS; // 156
-const CELL_H = 92;
-const LOG_Y = GRID_TOP + GRID_ROWS * (CELL_H + GRID_GAP) - GRID_GAP + 12; // 462
-const LOG_H = GAME_H - LOG_Y - 12; // 246
+const SIDE_TITLE_Y = 20;
+const ROW_TOP = 46;
+const LOG_H = 132;
+const LOG_Y = GAME_H - LOG_H - 10;
 
-/* ── 미니맵 (좌측 패널 우상단, 상단 컨트롤 바 아래, 고정 UI) ── */
-const MM_W = 204;
-const MM_H = 60;
+const MM_W = 230;
+const MM_H = 54;
 const MM_X = TRACK_PANEL_W - MM_W - 12;
-const MM_Y = TRACK_TOP + 8;
+const MM_Y = TRACK_TOP + 6;
 const MM_PAD = 10;
 
 export default class RaceScene extends Phaser.Scene {
@@ -78,26 +86,42 @@ export default class RaceScene extends Phaser.Scene {
     ensureFrogTextures(this, CHARACTERS);
     this.players = this.registry.get("players") || [];
     const mode = this.registry.get("mode") || "quick";
-    const roster = mode === "lobby" ? buildRoster(this.players) : CHARACTERS;
+
+    // ── 로스터 구성 (모드별) ──
+    let roster;
+    if (mode === "solo") {
+      const cid = this.registry.get("soloFrog");
+      const k = this.registry.get("soloCount") || 5;
+      const ch = CHARACTERS.find((c) => c.id === cid) || CHARACTERS[0];
+      roster = Array.from({ length: k }, (_, i) => ({ ...ch, displayName: `${ch.name} ${i + 1}` }));
+    } else if (mode === "lobby") {
+      roster = buildRoster(this.players).map((c) => ({ ...c, displayName: c.name }));
+    } else {
+      roster = CHARACTERS.map((c) => ({ ...c, displayName: c.name }));
+    }
+    // 레인 서는 순서 랜덤
+    Phaser.Utils.Array.Shuffle(roster);
+
     this.race = createRace(roster);
-    this.laneH = TRACK_H / this.race.frogs.length;
+    this.computePerspective(this.race.frogs.length);
+
     this.spd = 1;
     this.running = false;
     this.eventClock = 0;
     this.rankClock = 0;
+    this.trailClock = 0;
     this.logs = [];
     this.disp = {};
-    this.race.frogs.forEach((f) => (this.disp[f.id] = 0));
+    this.race.frogs.forEach((f) => (this.disp[f.uid] = 0));
 
-    this.spotlight = null; // { frog, until }
-    this.zoomedOut = true; // 기본: 줌아웃 상태로 시작
-    this.camFocus = this.zoomedOut
-      ? { x: TRACK_PANEL_W / 2, y: TRACK_TOP + TRACK_H / 2 }
-      : { x: xFor(0), y: this.laneY(0) };
+    this.wideView = false;
+    this.camFocusX = xFor(0);
 
+    this.buildTextures();
     this.setupCameras();
-
+    this.buildBackground();
     this.buildTrack();
+    this.buildTrails();
     this.buildRain();
     this.buildTrackUI();
     this.buildSidePanel();
@@ -105,308 +129,308 @@ export default class RaceScene extends Phaser.Scene {
     this.countdown();
   }
 
-  /* ───────── 카메라 3분할 ─────────
-     trackCam(main): 좌측 트랙, 줌/추적 대상 (worldObjs)
-     trackUiCam:    좌측 패널 위 고정 UI (날씨/속도버튼/미니맵/카운트다운) (uiObjs)
-     sideCam:       우측 선택UI/상태 패널, 고정 (sideObjs)                 */
+  computePerspective(n) {
+    this.laneScales = [];
+    const weights = [];
+    for (let i = 0; i < n; i++) {
+      const t = n <= 1 ? 1 : i / (n - 1);
+      const s = lerp(BACK_SCALE, FRONT_SCALE, t);
+      this.laneScales.push(s);
+      weights.push(s);
+    }
+    const total = weights.reduce((a, b) => a + b, 0);
+    const usable = TRACK_AREA_H * LANE_FILL;
+    const top = TRACK_AREA_TOP + (TRACK_AREA_H - usable) * 0.4;
+    this.laneCenters = [];
+    this.laneHeights = [];
+    let acc = 0;
+    for (let i = 0; i < n; i++) {
+      const h = (weights[i] / total) * usable;
+      this.laneHeights.push(h);
+      this.laneCenters.push(top + acc + h / 2);
+      acc += h;
+    }
+  }
+
+  laneY(lane) { return this.laneCenters[lane]; }
+  laneScale(lane) { return this.laneScales[lane]; }
+
+  buildTextures() {
+    if (!this.textures.exists("px-dust")) {
+      const g = this.add.graphics();
+      g.fillStyle(0xffffff, 1); g.fillCircle(6, 6, 6);
+      g.generateTexture("px-dust", 12, 12); g.destroy();
+    }
+    if (!this.textures.exists("px-shadow")) {
+      const g = this.make.graphics({}, false);
+      g.fillStyle(0x000000, 1); g.fillEllipse(40, 8, 76, 14);
+      g.generateTexture("px-shadow", 80, 16); g.destroy();
+    }
+    if (!this.textures.exists("px-reeds")) {
+      const w = 256, h = HORIZON_H;
+      const g = this.add.graphics();
+      g.fillStyle(0x14352c, 1);
+      for (let x = 0; x < w; x += 18) {
+        const rh = 26 + ((x * 37) % 30);
+        g.fillTriangle(x, h, x + 5, h - rh, x + 10, h);
+      }
+      g.fillStyle(0x1c4636, 1);
+      for (let x = 8; x < w; x += 40) g.fillEllipse(x, h - 6, 26, 10);
+      g.generateTexture("px-reeds", w, h); g.destroy();
+    }
+    // 먼 나무 + 언덕 실루엣 (느린 패럴랙스 = 깊은 배경)
+    if (!this.textures.exists("px-trees")) {
+      const w = 320, h = HORIZON_H;
+      const g = this.add.graphics();
+      g.fillStyle(0x123b30, 1);
+      g.fillEllipse(w * 0.3, h + 12, w * 0.95, 64);
+      g.fillEllipse(w * 0.82, h + 16, w * 0.8, 52);
+      [[42, 44], [98, 58], [156, 36], [214, 52], [272, 44], [308, 56]].forEach(([x, th]) => {
+        g.fillStyle(0x271a11, 1);
+        g.fillRect(x - 3, h - th, 6, th);
+        g.fillStyle(0x1c5236, 1);
+        g.fillCircle(x, h - th, 17);
+        g.fillCircle(x - 11, h - th + 7, 12);
+        g.fillCircle(x + 11, h - th + 7, 12);
+      });
+      g.generateTexture("px-trees", w, h); g.destroy();
+    }
+    // 화면 하단 전경: 돌 + 풀포기 (빠른 패럴랙스 = 이동감)
+    if (!this.textures.exists("px-fore")) {
+      const w = 240, h = 44;
+      const g = this.add.graphics();
+      g.fillStyle(0x1c4a2e, 1); g.fillRect(0, h - 16, w, 16);
+      g.fillStyle(0x4a4e4a, 1); g.fillEllipse(46, h - 12, 34, 18);
+      g.fillStyle(0x636763, 1); g.fillEllipse(46, h - 16, 24, 11);
+      g.fillStyle(0x44484a, 1); g.fillEllipse(168, h - 10, 42, 20);
+      g.fillStyle(0x5a5e60, 1); g.fillEllipse(168, h - 14, 30, 13);
+      g.fillStyle(0x2e6b3e, 1);
+      [12, 88, 120, 205, 230].forEach((x) => g.fillTriangle(x - 6, h, x, h - 18, x + 6, h));
+      g.generateTexture("px-fore", w, h); g.destroy();
+    }
+  }
+
+  /* ───────── 카메라 3분할 (고해상도 RS 슈퍼샘플) ───────── */
   setupCameras() {
     this.worldObjs = [];
     this.uiObjs = [];
     this.sideObjs = [];
+    const S = this.rs = this.scale.width / GAME_W;
 
-    const trackCam = this.cameras.main;
-    trackCam.setViewport(0, 0, TRACK_PANEL_W, GAME_H);
-    trackCam.setBounds(0, 0, TRACK_PANEL_W, GAME_H);
-    trackCam.setBackgroundColor(COLORS.bg);
-    trackCam.setZoom(this.zoomedOut ? ZOOM_OUT : ZOOM_BASE);
+    const cam = this.cameras.main;
+    cam.setViewport(0, 0, TRACK_PANEL_W * S, GAME_H * S);
+    cam.setBounds(0, 0, WORLD_W, GAME_H);
+    cam.setBackgroundColor(0x0c2230);
+    cam.setZoom(ZOOM_NORMAL * S);
 
-    this.trackUiCam = this.cameras.add(0, 0, TRACK_PANEL_W, GAME_H);
-    this.sideCam = this.cameras.add(SIDE_X, 0, SIDE_PANEL_W, GAME_H);
-    this.sideCam.setScroll(SIDE_X, 0);
+    this.trackUiCam = this.cameras.add(0, 0, TRACK_PANEL_W * S, GAME_H * S);
+    this.trackUiCam.setZoom(S);
+    this.trackUiCam.centerOn(TRACK_PANEL_W / 2, GAME_H / 2);
+
+    this.sideCam = this.cameras.add(SIDE_X * S, 0, SIDE_PANEL_W * S, GAME_H * S);
+    this.sideCam.setZoom(S);
+    this.sideCam.centerOn(SIDE_X + SIDE_PANEL_W / 2, GAME_H / 2);
     this.sideCam.setBackgroundColor(COLORS.dark);
   }
 
-  addWorld(obj) {
-    this.worldObjs.push(obj);
-    this.trackUiCam.ignore(obj);
-    this.sideCam.ignore(obj);
-    return obj;
-  }
+  addWorld(o) { this.worldObjs.push(o); this.trackUiCam.ignore(o); this.sideCam.ignore(o); return o; }
+  addTrackUI(o) { this.uiObjs.push(o); this.cameras.main.ignore(o); this.sideCam.ignore(o); return o; }
+  addSide(o) { this.sideObjs.push(o); this.cameras.main.ignore(o); this.trackUiCam.ignore(o); return o; }
 
-  addTrackUI(obj) {
-    this.uiObjs.push(obj);
-    this.cameras.main.ignore(obj);
-    this.sideCam.ignore(obj);
-    return obj;
+  // 패럴랙스 배경 — 모두 tileSprite(객체 1개씩) + scrollFactor 0.
+  // 매 프레임 tilePositionX = scrollX*factor 로 무한 스크롤(레이어별 속도차 = 깊이/이동감).
+  buildBackground() {
+    const vw = TRACK_PANEL_W * 1.5;
+    const cx = TRACK_PANEL_W / 2;
+    // 하늘
+    this.addWorld(this.add.rectangle(cx, TRACK_TOP + HORIZON_H / 2, vw, HORIZON_H, 0x1d4e5a).setScrollFactor(0).setDepth(-20));
+    this.addWorld(this.add.rectangle(cx, TRACK_TOP + 14, vw, 28, 0x2f7d86).setScrollFactor(0).setDepth(-19).setAlpha(0.6));
+    // 먼 나무/언덕 (가장 느림)
+    this.trees = this.addWorld(this.add.tileSprite(cx, TRACK_TOP + HORIZON_H / 2 + 2, vw, HORIZON_H, "px-trees").setScrollFactor(0).setDepth(-18).setAlpha(0.85));
+    // 갈대 (중간)
+    this.reeds = this.addWorld(this.add.tileSprite(cx, TRACK_TOP + HORIZON_H / 2 + 8, vw, HORIZON_H, "px-reeds").setScrollFactor(0).setDepth(-17).setAlpha(0.9));
+    // 물가 라인
+    this.addWorld(this.add.rectangle(cx, TRACK_AREA_TOP, vw, 4, 0x6fc0ce).setScrollFactor(0).setDepth(-16).setAlpha(0.5));
+    // 화면 하단 전경 (가장 빠름 = 이동감) — 개구리(depth 20+)보다 뒤(19)라 게임 가림 없음
+    this.fore = this.addWorld(this.add.tileSprite(cx, GAME_H - 14, vw, 44, "px-fore").setScrollFactor(0).setDepth(19).setAlpha(0.95));
   }
-
-  addSide(obj) {
-    this.sideObjs.push(obj);
-    this.cameras.main.ignore(obj);
-    this.trackUiCam.ignore(obj);
-    return obj;
-  }
-
-  /* 출전 개구리 수에 따라 트랙 전체 높이를 균등 분할한 레인 y좌표 */
-  laneY(lane) {
-    return TRACK_TOP + lane * this.laneH + this.laneH / 2;
-  }
-
-  /* ───────── 좌측: 레이스 트랙 (월드, 카메라 줌/추적) ───────── */
 
   buildTrack() {
-    const h = TRACK_H;
-
-    this.addWorld(
-      this.add
-        .rectangle(TRACK_PANEL_W / 2, TRACK_TOP + h / 2, TRACK_PANEL_W - 4, h + 10, 0x12383f)
-        .setStrokeStyle(2, 0x1e4a3d)
-    );
-
-    // 거리 마커 (25/50/75) + 백도 안전선
-    [[25, "25"], [50, "50"], [75, "75"]].forEach(([p, label]) => {
-      this.addWorld(
-        this.add
-          .line(0, 0, xFor(p), TRACK_TOP, xFor(p), TRACK_TOP + h, 0x3e7a64, 0.5)
-          .setOrigin(0)
-      );
-      this.addWorld(
-        this.add
-          .text(xFor(p), TRACK_TOP - 3, label, {
-            fontFamily: FONT, fontSize: "11px", color: "#3E7A64",
-          })
-          .setOrigin(0.5, 1)
-      );
-    });
-    this.addWorld(
-      this.add
-        .line(0, 0, xFor(RULES.BACKRUN_SAFE), TRACK_TOP, xFor(RULES.BACKRUN_SAFE), TRACK_TOP + h, 0xffd95e, 0.25)
-        .setOrigin(0)
-    );
-
-    // 결승선
-    this.addWorld(
-      this.add
-        .rectangle(xFor(RULES.TRACK) + 12, TRACK_TOP + h / 2, 8, h, 0xf2efe0)
-        .setFillStyle(0xf2efe0, 0.9)
-    );
-    for (let i = 0; i < Math.floor(h / 8); i += 2) {
-      this.addWorld(
-        this.add.rectangle(xFor(RULES.TRACK) + 12, TRACK_TOP + 4 + i * 8, 8, 8, 0x222222)
-      );
-    }
-
     this.sprites = {};
     this.laneFlash = {};
     this.miniDots = {};
+    const n = this.race.frogs.length;
 
+    // ── 정적 트랙 장식을 텍스처 1장으로 베이크 (드로우콜 ~80 → 1) ──
+    // 레인 밴드/하이라이트/그림자 + 거리 마커 + 백도선 + 결승선을 Graphics에 그려 generateTexture.
+    if (this.textures.exists("track-static")) this.textures.remove("track-static");
+    const g = this.make.graphics({}, false);
     this.race.frogs.forEach((f) => {
-      const ly = this.laneY(f.lane);
+      const t = n <= 1 ? 1 : f.lane / (n - 1);
+      const cy = this.laneY(f.lane);
+      const h = this.laneHeights[f.lane];
+      const base = lerpColor(0x0e2f38, 0x1c5560, t);
+      g.fillStyle(base, 1); g.fillRect(0, cy - (h - 1) / 2, WORLD_W, h - 1);
+      g.fillStyle(0x7fd0de, 0.15 + t * 0.25); g.fillRect(0, cy - h / 2, WORLD_W, 2);
+      g.fillStyle(0x06161c, 0.4); g.fillRect(0, cy + h / 2 - 1.5, WORLD_W, 3);
+    });
+    [25, 50, 75].forEach((p) => { g.fillStyle(0x3e7a64, 0.35); g.fillRect(xFor(p), TRACK_AREA_TOP, 1.5, TRACK_AREA_H); });
+    g.fillStyle(0xffd95e, 0.2); g.fillRect(xFor(RULES.BACKRUN_SAFE), TRACK_AREA_TOP, 1.5, TRACK_AREA_H);
+    const fx = xFor(RULES.TRACK);
+    g.fillStyle(0xf2efe0, 0.95); g.fillRect(fx - 5, TRACK_AREA_TOP, 10, TRACK_AREA_H);
+    g.fillStyle(0x222222, 1);
+    for (let i = 0; i < Math.floor(TRACK_AREA_H / 14); i += 2) g.fillRect(fx - 5, TRACK_AREA_TOP + 7 + i * 14, 10, 14);
+    g.generateTexture("track-static", WORLD_W, GAME_H);
+    g.destroy();
+    this.addWorld(this.add.image(0, 0, "track-static").setOrigin(0, 0).setDepth(0));
 
-      if (f.lane % 2 === 0) {
-        this.addWorld(
-          this.add
-            .rectangle(TRACK_PANEL_W / 2, ly, TRACK_PANEL_W - 8, this.laneH, 0xffffff, 0.025)
-            .setDepth(0)
-        );
-      }
-      this.laneFlash[f.id] = this.addWorld(
-        this.add
-          .rectangle(TRACK_PANEL_W / 2, ly, TRACK_PANEL_W - 8, this.laneH - 2, f.color, 0)
-          .setDepth(1)
+    // 동적 레인 플래시 (선택/스킬 시 점멸) — 레인당 1개만 유지
+    this.race.frogs.forEach((f) => {
+      this.laneFlash[f.uid] = this.addWorld(
+        this.add.rectangle(WORLD_W / 2, this.laneY(f.lane), WORLD_W, this.laneHeights[f.lane] - 2, f.color, 0).setDepth(3)
       );
+    });
 
-      // 개구리
-      this.sprites[f.id] = this.addWorld(
-        this.add
-          .image(xFor(0), ly, `frog-${f.id}`)
-          .setScale(0.95)
-          .setDepth(5)
+    // 개구리 + 그림자(공유 px-shadow 텍스처 → 한 배치로 묶임)
+    this.race.frogs.forEach((f) => {
+      const s = this.laneScale(f.lane) * FROG_BASE;
+      const shadow = this.addWorld(
+        this.add.image(xFor(0), this.laneY(f.lane) + 16 * this.laneScale(f.lane), "px-shadow").setDepth(20 + f.lane)
       );
+      shadow.baseS = s * 0.5;
+      shadow.setScale(shadow.baseS).setAlpha(0.35);
+      const spr = this.addWorld(
+        this.add.image(xFor(0), this.laneY(f.lane), `frog-${f.id}`).setScale(s).setDepth(20 + f.lane + 0.5)
+      );
+      const animKey = `hop-${f.id}`;
+      spr.baseScale = s;
+      spr.hopPhase = Math.random() * Math.PI * 2;
+      if (this.anims.exists(animKey)) { spr.isProc = false; spr.play(animKey); }
+      else spr.isProc = true;
+      spr.shadowObj = shadow;
+      this.sprites[f.uid] = spr;
     });
   }
 
-  buildRain() {
-    const h = TRACK_H;
-    this.rainOverlay = this.addWorld(
-      this.add
-        .rectangle(TRACK_PANEL_W / 2, TRACK_TOP + h / 2, TRACK_PANEL_W - 4, h + 10, 0x3e8e9e, 0)
-        .setDepth(7)
+  buildTrails() {
+    this.trail = this.addWorld(
+      this.add.particles(0, 0, "px-dust", {
+        lifespan: 300,
+        speedX: { min: -50, max: -18 },
+        speedY: { min: -22, max: 6 },
+        scale: { start: 0.5, end: 0 },
+        alpha: { start: 0.55, end: 0 },
+        tint: [0xcfeefa, 0x6fc0ce],
+        maxParticles: 40, // 폭주 방지 상한
+        emitting: false,
+      }).setDepth(18)
     );
+  }
+
+  buildRain() {
+    // 비 오버레이는 평소 숨김 — 풀스크린 레이어가 항상 그려지지 않도록(오버드로 절감)
+    this.rainOverlay = this.addWorld(this.add.rectangle(WORLD_W / 2, TRACK_AREA_TOP + TRACK_AREA_H / 2, WORLD_W, TRACK_AREA_H, 0x3e8e9e, 0.14).setDepth(16).setVisible(false));
     this.drops = [];
     for (let i = 0; i < 8; i++) {
-      const d = this.addWorld(
-        this.add
-          .text(40 + i * 100, TRACK_TOP - 20, "💧", { fontSize: "14px" })
-          .setAlpha(0)
-          .setDepth(8)
-      );
-      this.drops.push(d);
+      this.drops.push(this.addWorld(this.add.text(0, 0, "💧", { fontSize: "16px" }).setScrollFactor(0).setAlpha(0).setDepth(17)));
     }
   }
 
   setRainVisual(on) {
-    this.rainOverlay.setFillStyle(0x3e8e9e, on ? 0.13 : 0);
+    this.rainOverlay.setVisible(on);
     this.weatherText.setText(on ? "🌧️ 비!" : "☀️ 맑음");
     this.weatherText.setColor(on ? "#7FD0DE" : CSS.dim);
-    const h = TRACK_H;
     this.drops.forEach((d, i) => {
       this.tweens.killTweensOf(d);
       if (on) {
-        d.setAlpha(0.8);
+        const x = 30 + i * (TRACK_PANEL_W / 8);
+        d.setAlpha(0.8).setX(x);
         this.tweens.add({
-          targets: d,
-          y: { from: TRACK_TOP - 10, to: TRACK_TOP + h - 10 },
-          x: `+=${10}`,
-          duration: 900 + i * 130,
-          repeat: -1,
-          onRepeat: () => d.setY(TRACK_TOP - 10),
+          targets: d, y: { from: TRACK_AREA_TOP - 10, to: TRACK_AREA_TOP + TRACK_AREA_H - 10 },
+          x: `+=14`, duration: 760 + i * 70, repeat: -1,
+          onRepeat: () => d.setY(TRACK_AREA_TOP - 10).setX(x),
         });
-      } else {
-        d.setAlpha(0);
-        d.setY(TRACK_TOP - 20);
-      }
+      } else d.setAlpha(0);
     });
   }
 
-  /* ───────── 좌측: 고정 UI (날씨/속도버튼/미니맵/카운트다운) ───────── */
-
-  /* 상단 가로 컨트롤 바 — 날씨/속도/줌/음악/나가기를 좌측 끝부터 순서대로 배치
-     (레인 수가 적어 레인이 두꺼워져도 출발 위치의 개구리와 겹치지 않도록
-     세로 스택 대신 가로 1열로 구성) */
   buildTrackUI() {
-    const BAR_Y = 27;
-    const GAP = 10;
-    const BAR_FONT = "22px";
-    const BAR_PAD = { x: 12, y: 6 };
+    const BAR_Y = 27, GAP = 10, BAR_FONT = "24px", BAR_PAD = { x: 13, y: 7 };
     let cx = 14;
+    const place = (obj) => { obj.setOrigin(0, 0.5).setPosition(cx, BAR_Y); cx += obj.width + GAP; return this.addTrackUI(obj); };
 
-    const place = (obj) => {
-      obj.setOrigin(0, 0.5).setPosition(cx, BAR_Y);
-      cx += obj.width + GAP;
-      return this.addTrackUI(obj);
-    };
-
-    this.weatherText = place(
-      this.add.text(0, 0, "☀️ 맑음", {
-        fontFamily: FONT, fontSize: BAR_FONT, color: CSS.dim,
-        backgroundColor: CSS.panelTranslucent, padding: BAR_PAD,
-      })
-    );
-
-    this.speedBtn = place(
-      this.add
-        .text(0, 0, "▶ x1", {
-          fontFamily: FONT, fontSize: BAR_FONT, color: CSS.dim,
-          backgroundColor: CSS.panelTranslucent, padding: BAR_PAD,
-        })
-        .setInteractive({ useHandCursor: true })
-        .on("pointerup", () => {
-          sound.click();
-          this.setSpeed(this.spd >= 4 ? 1 : this.spd * 2);
-        })
-    );
-
-    this.zoomBtn = place(
-      this.add
-        .text(0, 0, this.zoomedOut ? "🔍 줌인" : "🔍 줌아웃", {
-          fontFamily: FONT, fontSize: BAR_FONT, color: this.zoomedOut ? CSS.firefly : CSS.dim,
-          backgroundColor: CSS.panelTranslucent, padding: BAR_PAD,
-        })
-        .setInteractive({ useHandCursor: true })
-        .on("pointerup", () => this.toggleZoom())
-    );
-
+    this.weatherText = place(this.add.text(0, 0, "☀️ 맑음", { fontFamily: FONT, fontSize: BAR_FONT, color: CSS.dim, backgroundColor: CSS.panelTranslucent, padding: BAR_PAD }));
+    this.speedBtn = place(this.add.text(0, 0, "▶ x1", { fontFamily: FONT, fontSize: BAR_FONT, color: CSS.dim, backgroundColor: CSS.panelTranslucent, padding: BAR_PAD })
+      .setInteractive({ useHandCursor: true }).on("pointerup", () => { sound.click(); this.setSpeed(this.spd >= 4 ? 1 : this.spd * 2); }));
+    this.zoomBtn = place(this.add.text(0, 0, "🔍 넓게", { fontFamily: FONT, fontSize: BAR_FONT, color: CSS.dim, backgroundColor: CSS.panelTranslucent, padding: BAR_PAD })
+      .setInteractive({ useHandCursor: true }).on("pointerup", () => this.toggleZoom()));
     place(makeMusicToggle(this, 0, 0, { fontSize: BAR_FONT, padding: BAR_PAD }));
-
-    place(
-      this.add
-        .text(0, 0, "✕ 나가기", {
-          fontFamily: FONT, fontSize: BAR_FONT, color: CSS.pink,
-          backgroundColor: CSS.panelTranslucent, padding: BAR_PAD,
-        })
-        .setInteractive({ useHandCursor: true })
-        .on("pointerup", () => {
-          sound.click();
-          this.scene.start("Title");
-        })
-    );
+    place(this.add.text(0, 0, "✕ 나가기", { fontFamily: FONT, fontSize: BAR_FONT, color: CSS.pink, backgroundColor: CSS.panelTranslucent, padding: BAR_PAD })
+      .setInteractive({ useHandCursor: true }).on("pointerup", () => { sound.click(); this.scene.start("Title"); }));
 
     this.buildCenterBanner();
     this.buildMinimap();
-    this.setMinimapVisible(!this.zoomedOut);
+
+    // 진단용 FPS/프레임타임 표시기 (수평선 밴드 빈 공간). 텍스트 갱신은 0.25초마다(측정 왜곡 방지)
+    this.fpsText = this.addTrackUI(
+      this.add.text(14, 64, "FPS --", {
+        fontFamily: FONT, fontSize: "20px", color: CSS.firefly,
+        backgroundColor: "rgba(10,31,26,0.6)", padding: { x: 8, y: 4 },
+      }).setDepth(35)
+    );
+    this.fpsClock = 0;
+    this.fpsMin = 999;
+
+    // 진단용: 실제 렌더러 + GPU 이름 (소프트웨어 렌더링/Canvas 폴백 여부 확정)
+    let rinfo = "Canvas2D (GPU 미사용)";
+    const r = this.game.renderer;
+    if (r && r.type === Phaser.WEBGL && r.gl) {
+      const gl = r.gl;
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "WebGL";
+      rinfo = `WebGL · ${name}`;
+    }
+    this.addTrackUI(
+      this.add.text(14, 94, rinfo, {
+        fontFamily: FONT, fontSize: "14px", color: CSS.dim,
+        backgroundColor: "rgba(10,31,26,0.6)", padding: { x: 8, y: 3 },
+      }).setDepth(35)
+    );
   }
 
-  /* 화면 정중앙에 표시되는 선택/이벤트 알림 — 등장 후 일정 시간 뒤 사라지고,
-     다음 이벤트 발생 시 다시 등장 */
   buildCenterBanner() {
     this.centerBanner = this.addTrackUI(
-      this.add
-        .text(GAME_W / 2, GAME_H / 2, "", {
-          fontFamily: FONT, fontSize: "48px", color: CSS.cream, fontStyle: "700",
-          align: "center", wordWrap: { width: TRACK_PANEL_W - 80 },
-          stroke: "#0A1F1A", strokeThickness: 6,
-          backgroundColor: "rgba(10, 31, 26, 0.6)", padding: { x: 28, y: 16 },
-        })
-        .setOrigin(0.5)
-        .setAlpha(0)
-        .setDepth(15)
+      this.add.text(TRACK_PANEL_W / 2, GAME_H / 2, "", {
+        fontFamily: FONT, fontSize: "50px", color: CSS.cream, fontStyle: "700",
+        align: "center", wordWrap: { width: TRACK_PANEL_W - 80 },
+        stroke: "#0A1F1A", strokeThickness: 6,
+        backgroundColor: "rgba(10, 31, 26, 0.6)", padding: { x: 28, y: 16 },
+      }).setOrigin(0.5).setAlpha(0).setDepth(30)
     );
   }
 
   toggleZoom() {
     sound.click();
-    this.zoomedOut = !this.zoomedOut;
-    this.zoomBtn.setText(this.zoomedOut ? "🔍 줌인" : "🔍 줌아웃");
-    this.zoomBtn.setColor(this.zoomedOut ? CSS.firefly : CSS.dim);
-    this.setMinimapVisible(!this.zoomedOut);
-  }
-
-  setMinimapVisible(visible) {
-    this.minimapObjs.forEach((o) => o.setVisible(visible));
+    this.wideView = !this.wideView;
+    this.zoomBtn.setText(this.wideView ? "🔍 기본" : "🔍 넓게");
+    this.zoomBtn.setColor(this.wideView ? CSS.firefly : CSS.dim);
+    this.cameras.main.zoomTo((this.wideView ? ZOOM_WIDE : ZOOM_NORMAL) * this.rs, 300);
   }
 
   buildMinimap() {
-    this.minimapObjs = [];
-    this.minimapObjs.push(
-      this.addTrackUI(
-        this.add
-          .rectangle(MM_X + MM_W / 2, MM_Y + MM_H / 2, MM_W, MM_H, 0x0a1f1a, 0.55)
-          .setStrokeStyle(1, 0x3e7a64)
-      ),
-      this.addTrackUI(
-        this.add.text(MM_X + 6, MM_Y + 4, "MAP", {
-          fontFamily: FONT, fontSize: "10px", color: CSS.dim,
-        })
-      )
-    );
+    this.addTrackUI(this.add.rectangle(MM_X + MM_W / 2, MM_Y + MM_H / 2, MM_W, MM_H, 0x0a1f1a, 0.55).setStrokeStyle(1, 0x3e7a64).setDepth(25));
+    this.addTrackUI(this.add.text(MM_X + 6, MM_Y + 3, "MAP", { fontFamily: FONT, fontSize: "11px", color: CSS.dim }).setDepth(26));
+    const lineY = MM_Y + MM_H - 11;
+    this.mmX0 = MM_X + MM_PAD;
+    this.mmX1 = MM_X + MM_W - MM_PAD;
+    this.addTrackUI(this.add.line(0, 0, this.mmX0, lineY, this.mmX1, lineY, 0x3e7a64, 0.8).setOrigin(0).setDepth(26));
+    this.addTrackUI(this.add.line(0, 0, this.mmX1, lineY - 5, this.mmX1, lineY + 5, 0xf2efe0, 0.9).setOrigin(0).setDepth(26));
+    this.mmViewport = this.addTrackUI(this.add.rectangle(this.mmX0, MM_Y + MM_H / 2, 10, MM_H - 6, 0xffd95e, 0.12).setStrokeStyle(1, 0xffd95e, 0.5).setOrigin(0, 0.5).setDepth(25));
 
-    const lineY = MM_Y + MM_H - 12;
-    this.mmTrackX0 = MM_X + MM_PAD;
-    this.mmTrackX1 = MM_X + MM_W - MM_PAD;
-    this.minimapObjs.push(
-      this.addTrackUI(
-        this.add
-          .line(0, 0, this.mmTrackX0, lineY, this.mmTrackX1, lineY, 0x3e7a64, 0.8)
-          .setOrigin(0)
-      ),
-      this.addTrackUI(
-        this.add
-          .line(0, 0, this.mmTrackX1, lineY - 5, this.mmTrackX1, lineY + 5, 0xf2efe0, 0.9)
-          .setOrigin(0)
-      )
-    );
-
-    const top = MM_Y + 16;
-    const bottom = lineY - 6;
-    const lanes = this.race.frogs.length;
+    const top = MM_Y + 15, bottom = lineY - 5, lanes = this.race.frogs.length;
     this.race.frogs.forEach((f) => {
       const t = bottom <= top || lanes <= 1 ? 0.5 : f.lane / (lanes - 1);
-      const dy = top + t * (bottom - top);
-      this.miniDots[f.id] = this.addTrackUI(
-        this.add.circle(this.mmTrackX0, dy, 3, f.color)
-      );
-      this.minimapObjs.push(this.miniDots[f.id]);
+      this.miniDots[f.uid] = this.addTrackUI(this.add.circle(this.mmX0, top + t * (bottom - top), 3, f.color).setDepth(26));
     });
   }
 
@@ -417,29 +441,12 @@ export default class RaceScene extends Phaser.Scene {
   }
 
   countdown() {
-    const overlay = this.addTrackUI(
-      this.add
-        .rectangle(TRACK_PANEL_W / 2, GAME_H / 2, TRACK_PANEL_W, GAME_H, 0x0a1f1a, 0.55)
-        .setDepth(20)
-    );
-    const num = this.addTrackUI(
-      this.add
-        .text(TRACK_PANEL_W / 2, GAME_H / 2, "3", {
-          fontFamily: FONT, fontSize: "104px", color: CSS.firefly, fontStyle: "700",
-        })
-        .setOrigin(0.5)
-        .setDepth(21)
-    );
+    const overlay = this.addTrackUI(this.add.rectangle(TRACK_PANEL_W / 2, GAME_H / 2, TRACK_PANEL_W, GAME_H, 0x0a1f1a, 0.55).setDepth(40));
+    const num = this.addTrackUI(this.add.text(TRACK_PANEL_W / 2, GAME_H / 2, "3", { fontFamily: FONT, fontSize: "108px", color: CSS.firefly, fontStyle: "700" }).setOrigin(0.5).setDepth(41));
     const seq = ["3", "2", "1", "개굴!"];
     let i = 0;
     const step = () => {
-      if (i >= seq.length) {
-        overlay.destroy();
-        num.destroy();
-        this.running = true;
-        this.banner("🐸 레이스 시작!", CSS.firefly);
-        return;
-      }
+      if (i >= seq.length) { overlay.destroy(); num.destroy(); this.running = true; this.banner("🐸 레이스 시작!", CSS.firefly); return; }
       num.setText(seq[i]).setScale(0.6);
       sound.countdownBeep(i === seq.length - 1);
       this.tweens.add({ targets: num, scale: 1, duration: 180, ease: "Back.easeOut" });
@@ -449,128 +456,71 @@ export default class RaceScene extends Phaser.Scene {
     step();
   }
 
-  /* ───────── 우측: 선택 UI / 현재 상태 패널 ───────── */
-
+  /* ───────── 우측: 컴팩트 리더보드 ───────── */
   buildSidePanel() {
-    this.addSide(
-      this.add
-        .text(SIDE_X + SIDE_PANEL_W / 2, SIDE_TITLE_Y, `🏆 연못 더비 · ${RULES.TRACK}칸`, {
-          fontFamily: FONT, fontSize: "22px", color: CSS.firefly, fontStyle: "700",
-        })
-        .setOrigin(0.5)
-    );
+    this.addSide(this.add.text(SIDE_X + SIDE_PANEL_W / 2, SIDE_TITLE_Y, `🏆 실황 · ${RULES.TRACK}칸`, { fontFamily: FONT, fontSize: "20px", color: CSS.firefly, fontStyle: "700" }).setOrigin(0.5));
 
     this.rankTexts = {};
-    this.gaugeBoxes = {};
-    this.passiveTexts = {};
-    this.medalTexts = {};
     this.nameTexts = {};
+    this.gaugeTexts = {};
+    this.medalTexts = {};
 
-    const gaugeW = 5 * 15 - 3; // 72 — 12px 박스 + 3px 간격 x4
+    const n = this.race.frogs.length;
+    const areaH = LOG_Y - ROW_TOP - 6;
+    const rowH = Math.min(64, areaH / n);
+
+    // 행 배경(정적)을 텍스처 1장으로 베이크 (8 shape → 1)
+    if (this.textures.exists("side-static")) this.textures.remove("side-static");
+    const bg = this.make.graphics({}, false);
+    for (let i = 0; i < n; i++) {
+      const y = ROW_TOP + i * rowH;
+      bg.fillStyle(0xffffff, 0.03); bg.fillRect(7, y + 2, SIDE_PANEL_W - 14, rowH - 4);
+      bg.lineStyle(1, 0x1e4a3d); bg.strokeRect(7, y + 2, SIDE_PANEL_W - 14, rowH - 4);
+    }
+    bg.generateTexture("side-static", SIDE_PANEL_W, GAME_H);
+    bg.destroy();
+    this.addSide(this.add.image(SIDE_X, 0, "side-static").setOrigin(0, 0));
 
     this.race.frogs.forEach((f, i) => {
-      const col = i % GRID_COLS;
-      const row = Math.floor(i / GRID_COLS);
-      const cx0 = SIDE_X + GRID_PAD + col * (CELL_W + GRID_GAP);
-      const cy0 = GRID_TOP + row * (CELL_H + GRID_GAP);
-
-      this.addSide(
-        this.add
-          .rectangle(cx0 + CELL_W / 2, cy0 + CELL_H / 2, CELL_W, CELL_H, 0xffffff, 0.025)
-          .setStrokeStyle(1, 0x1e4a3d)
-      );
-
-      const fans = this.players
-        .filter((p) => p.frogId === f.id)
-        .map((p) => p.label)
-        .join("");
-      this.nameTexts[f.id] = this.addSide(
-        this.add
-          .text(cx0 + 10, cy0 + 8, `${f.name}${fans ? ` ★${fans}` : ""}`, {
-            fontFamily: FONT, fontSize: "19px", fontStyle: "700",
-            color: fans ? CSS.firefly : f.colorCss,
-            wordWrap: { width: CELL_W - 20 }, lineSpacing: 2,
-          })
-      );
-
-      this.rankTexts[f.id] = this.addSide(
-        this.add
-          .text(cx0 + 10, cy0 + CELL_H - 12, "", {
-            fontFamily: FONT, fontSize: "20px", color: CSS.dim, fontStyle: "700",
-          })
-          .setOrigin(0, 1)
-      );
-
-      // 스킬 게이지 (액티브) / 패시브 뱃지 — 카드 우하단
+      const y = ROW_TOP + i * rowH;
+      this.rankTexts[f.uid] = this.addSide(this.add.text(SIDE_X + 12, y + rowH / 2, "-", { fontFamily: FONT, fontSize: "22px", color: CSS.dim, fontStyle: "700" }).setOrigin(0, 0.5));
+      const fans = this.players.filter((p) => p.frogId === f.id).map((p) => p.label).join("");
+      this.nameTexts[f.uid] = this.addSide(this.add.text(SIDE_X + 54, y + 7, `${f.displayName}${fans ? ` ★${fans}` : ""}`, {
+        fontFamily: FONT, fontSize: "20px", fontStyle: "700", color: fans ? CSS.firefly : f.colorCss,
+      }));
+      // 게이지: 5칸 사각형(shape) 대신 텍스트 1개로 (드로우콜 절감)
       if (f.skillType === "active") {
-        const boxes = [];
-        const gaugeX = cx0 + CELL_W - gaugeW - 10;
-        for (let g = 0; g < (f.gaugeMax || RULES.GAUGE_MAX); g++) {
-          boxes.push(
-            this.addSide(
-              this.add
-                .rectangle(gaugeX + g * 15, cy0 + CELL_H - 17, 12, 12, 0x0a1f1a)
-                .setStrokeStyle(1, 0x3e7a64)
-            )
-          );
-        }
-        this.gaugeBoxes[f.id] = boxes;
+        const gmax = f.gaugeMax || RULES.GAUGE_MAX;
+        const tx = this.addSide(this.add.text(SIDE_X + 54, y + rowH - 21, "□".repeat(gmax), { fontFamily: FONT, fontSize: "16px", color: CSS.firefly }));
+        tx.gmax = gmax;
+        this.gaugeTexts[f.uid] = tx;
       } else {
-        this.passiveTexts[f.id] = this.addSide(
-          this.add
-            .text(cx0 + CELL_W - 32, cy0 + CELL_H - 28, "🔷", { fontSize: "24px" })
-        );
+        this.addSide(this.add.text(SIDE_X + 54, y + rowH - 20, "🔷 패시브", { fontFamily: FONT, fontSize: "14px", color: CSS.dim }));
       }
-
-      // 골인 메달 — 카드 우상단
-      this.medalTexts[f.id] = this.addSide(
-        this.add
-          .text(cx0 + CELL_W - 8, cy0 + 8, "", {
-            fontFamily: FONT, fontSize: "22px", color: CSS.firefly,
-          })
-          .setOrigin(1, 0)
-      );
+      this.medalTexts[f.uid] = this.addSide(this.add.text(SIDE_X + SIDE_PANEL_W - 12, y + rowH / 2, "", { fontFamily: FONT, fontSize: "24px", color: CSS.firefly }).setOrigin(1, 0.5));
     });
 
     this.buildLog();
   }
 
   buildLog() {
-    this.addSide(
-      this.add
-        .rectangle(SIDE_X + SIDE_PANEL_W / 2, LOG_Y + LOG_H / 2, SIDE_PANEL_W - 20, LOG_H, 0x0a1f1a)
-        .setStrokeStyle(1, 0x1e4a3d)
-    );
-    this.logText = this.addSide(
-      this.add.text(SIDE_X + 18, LOG_Y + 10, "", {
-        fontFamily: FONT, fontSize: "20px", color: CSS.cream, lineSpacing: 8,
-        wordWrap: { width: SIDE_PANEL_W - 36 },
-      })
-    );
-
-    // 박스를 벗어난 텍스트는 가려지도록 클리핑 마스크 적용
-    const maskShape = this.make.graphics({}, false);
-    maskShape.fillRect(SIDE_X + 10, LOG_Y, SIDE_PANEL_W - 20, LOG_H);
-    this.logText.setMask(maskShape.createGeometryMask());
+    this.addSide(this.add.rectangle(SIDE_X + SIDE_PANEL_W / 2, LOG_Y + LOG_H / 2, SIDE_PANEL_W - 14, LOG_H, 0x0a1f1a).setStrokeStyle(1, 0x1e4a3d));
+    this.logText = this.addSide(this.add.text(SIDE_X + 14, LOG_Y + 8, "", { fontFamily: FONT, fontSize: "16px", color: CSS.cream, lineSpacing: 6, wordWrap: { width: SIDE_PANEL_W - 28 } }));
+    const mask = this.make.graphics({}, false);
+    mask.fillRect(SIDE_X + 8, LOG_Y, SIDE_PANEL_W - 16, LOG_H);
+    this.logText.setMask(mask.createGeometryMask());
   }
 
   /* ───────── 연출 헬퍼 ───────── */
-
-  // 화면 정중앙 알림: 등장(팝) → 잠시 유지 → 소멸. 다음 호출 시 다시 등장
   banner(msg, color = CSS.cream) {
     const t = this.centerBanner;
     t.setText(msg).setColor(color);
     this.tweens.killTweensOf(t);
     if (this.bannerHideEvent) this.bannerHideEvent.remove(false);
-
     t.setScale(0.7).setAlpha(1);
-    this.tweens.add({
-      targets: t, scale: 1, duration: 150, ease: "Back.easeOut",
-    });
+    this.tweens.add({ targets: t, scale: 1, duration: 150, ease: "Back.easeOut" });
     this.bannerHideEvent = this.time.delayedCall(1100, () => {
-      this.tweens.add({
-        targets: t, alpha: 0, scale: 0.85, duration: 250, ease: "Sine.easeIn",
-      });
+      this.tweens.add({ targets: t, alpha: 0, scale: 0.85, duration: 250, ease: "Sine.easeIn" });
     });
   }
 
@@ -581,93 +531,76 @@ export default class RaceScene extends Phaser.Scene {
   }
 
   flashLane(frog, color = null) {
-    const rect = this.laneFlash[frog.id];
-    rect.setFillStyle(color ?? frog.color, 0.2);
+    const rect = this.laneFlash[frog.uid];
+    rect.setFillStyle(color ?? frog.color, 0.22);
     this.tweens.add({ targets: rect, fillAlpha: 0, duration: 500 });
   }
 
   floatText(frog, msg, color = CSS.firefly) {
-    const spr = this.sprites[frog.id];
-    const t = this.addWorld(
-      this.add
-        .text(spr.x, spr.y - 26, msg, {
-          fontFamily: FONT, fontSize: "22px", color,
-          stroke: "#0A1F1A", strokeThickness: 3,
-        })
-        .setOrigin(0.5)
-        .setDepth(10)
-    );
-    this.tweens.add({
-      targets: t, y: t.y - 20, alpha: 0, duration: 850,
-      onComplete: () => t.destroy(),
-    });
-  }
-
-  spotlightFrog(frog) {
-    this.spotlight = { frog, until: this.time.now + SPOTLIGHT_MS };
+    const spr = this.sprites[frog.uid];
+    const s = this.laneScale(frog.lane);
+    const t = this.addWorld(this.add.text(spr.x, spr.y - 30 * s, msg, {
+      fontFamily: FONT, fontSize: `${Math.round(20 * s)}px`, color, stroke: "#0A1F1A", strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(28));
+    this.tweens.add({ targets: t, y: t.y - 22, alpha: 0, duration: 850, onComplete: () => t.destroy() });
   }
 
   updateGauges() {
     this.race.frogs.forEach((f) => {
-      const boxes = this.gaugeBoxes[f.id];
-      if (!boxes) return;
-      boxes.forEach((b, i) => {
-        if (i < f.gauge) b.setFillStyle(0xffd95e, 1);
-        else b.setFillStyle(0x0a1f1a, 1);
-      });
+      const tx = this.gaugeTexts[f.uid];
+      if (!tx) return;
+      tx.setText("■".repeat(f.gauge) + "□".repeat(Math.max(0, tx.gmax - f.gauge)));
     });
   }
 
   updateRanks() {
-    const ranked = currentRanking(this.race);
-    ranked.forEach((f, i) => {
-      const t = this.rankTexts[f.id];
-      t.setText(`${i + 1}위`);
+    currentRanking(this.race).forEach((f, i) => {
+      const t = this.rankTexts[f.uid];
+      t.setText(`${i + 1}`);
       t.setColor(i === 0 ? CSS.firefly : i < 3 ? CSS.lily : CSS.dim);
     });
   }
 
-  /* ───────── 이벤트 처리 ───────── */
+  splash(frog, count = 8) {
+    const spr = this.sprites[frog.uid];
+    if (!spr) return;
+    const s = this.laneScale(frog.lane);
+    this.trail.emitParticleAt(spr.x - 16 * s, spr.y + 12 * s, count);
+  }
 
+  /* ───────── 이벤트 처리 ───────── */
   handleEvents(events) {
     for (const ev of events) {
       switch (ev.type) {
         case "select":
           sound.select();
-          this.banner(`🎲 ${ev.frog.name}!`, ev.frog.colorCss);
+          this.banner(`🎲 ${ev.frog.displayName}!`, ev.frog.colorCss);
           this.flashLane(ev.frog);
-          this.spotlightFrog(ev.frog);
+          this.splash(ev.frog, 10);
           break;
         case "move":
-          if (ev.cause === "select")
-            this.floatText(ev.frog, `+${Math.round(ev.amount * 10) / 10}`);
+          if (ev.cause === "select") this.floatText(ev.frog, `+${Math.round(ev.amount * 10) / 10}`);
           else if (ev.cause === "skill") {
             const amt = Math.round(ev.amount * 10) / 10;
             this.floatText(ev.frog, `${amt > 0 ? "+" : ""}${amt}!`, amt > 0 ? "#7FFFB0" : CSS.pink);
-          } else if (ev.cause === "chase")
-            this.floatText(ev.frog, `추격 +${Math.round(ev.amount * 10) / 10}!`, "#9FE060");
+          } else if (ev.cause === "chase") this.floatText(ev.frog, `추격 +${Math.round(ev.amount * 10) / 10}!`, "#9FE060");
           else if (ev.cause === "backrun") {
             this.floatText(ev.frog, `${Math.round(ev.amount * 10) / 10}`, CSS.pink);
-            this.pushLog(`💀 백도! ${ev.frog.name} ${Math.round(ev.amount)}칸`);
-          } else if (ev.cause === "maengCry")
-            this.floatText(ev.frog, `${Math.round(ev.amount * 10) / 10}`, CSS.pink);
-          else if (ev.cause === "clawCounter" && ev.amount < 0)
-            this.floatText(ev.frog, `${Math.round(ev.amount * 10) / 10}`, CSS.pink);
-          else if (ev.cause === "clawCounter" && ev.amount > 0)
-            this.floatText(ev.frog, `+${Math.round(ev.amount * 10) / 10}!`, "#7FFFB0");
-          else if (ev.cause === "hornJump")
-            this.floatText(ev.frog, "돌진!", "#FFB060");
+            this.pushLog(`💀 백도! ${ev.frog.displayName} ${Math.round(ev.amount)}칸`);
+          } else if (ev.cause === "maengCry") this.floatText(ev.frog, `${Math.round(ev.amount * 10) / 10}`, CSS.pink);
+          else if (ev.cause === "clawCounter" && ev.amount < 0) this.floatText(ev.frog, `${Math.round(ev.amount * 10) / 10}`, CSS.pink);
+          else if (ev.cause === "clawCounter" && ev.amount > 0) this.floatText(ev.frog, `+${Math.round(ev.amount * 10) / 10}!`, "#7FFFB0");
+          else if (ev.cause === "hornJump") this.floatText(ev.frog, "돌진!", "#FFB060");
           break;
-        case "skill": {
+        case "skill":
           sound.skill();
-          this.banner(`✨ ${ev.frog.name} [${ev.frog.skillName}]!`, ev.frog.colorCss);
-          this.pushLog(`✨ ${ev.frog.name}의 ${ev.frog.skillName} 발동!`);
+          this.banner(`✨ ${ev.frog.displayName} [${ev.frog.skillName}]!`, ev.frog.colorCss);
+          this.pushLog(`✨ ${ev.frog.displayName}의 ${ev.frog.skillName} 발동!`);
           this.flashLane(ev.frog, 0xffd95e);
-          this.spotlightFrog(ev.frog);
+          this.splash(ev.frog, 16);
           break;
-        }
         case "chase":
-          this.pushLog(`🏃 ${ev.frog.name}이(가) ${ev.target.name}을(를) 추격!`);
+          this.pushLog(`🏃 ${ev.frog.displayName}이(가) ${ev.target.displayName}을(를) 추격!`);
           break;
         case "rainStart":
           sound.rain(true);
@@ -692,23 +625,20 @@ export default class RaceScene extends Phaser.Scene {
         case "backrunImmune":
         case "pushImmune":
           this.floatText(ev.frog, "면역!", "#FFD95E");
-          this.pushLog(`🛡️ ${ev.frog.name}은(는) 밀리지 않는다!`);
+          this.pushLog(`🛡️ ${ev.frog.displayName}은(는) 밀리지 않는다!`);
           break;
         case "clawCounter":
-          this.banner(`🪝 ${ev.frog.name}의 역습!`, ev.frog.colorCss);
-          this.pushLog(`🪝 ${ev.frog.name} 역습! 전원 -5, 자신 +5`);
+          this.banner(`🪝 ${ev.frog.displayName}의 역습!`, ev.frog.colorCss);
+          this.pushLog(`🪝 ${ev.frog.displayName} 역습! 전원 -5, 자신 +5`);
           break;
         case "finish": {
           const medal = MEDAL[ev.order - 1] || `${ev.order}위`;
-          this.medalTexts[ev.frog.id].setText(medal);
-          this.pushLog(`🏁 ${ev.frog.name} ${ev.order}위 골인!`);
+          this.medalTexts[ev.frog.uid].setText(medal);
+          this.pushLog(`🏁 ${ev.frog.displayName} ${ev.order}위 골인!`);
           if (ev.order === 1) {
             sound.finish();
-            this.banner(`🏁 ${ev.frog.name} 우승!!`, CSS.firefly);
-            if (this.spd === 1) {
-              this.setSpeed(2);
-              this.pushLog("⏩ 남은 레이스 자동 2배속");
-            }
+            this.banner(`🏁 ${ev.frog.displayName} 우승!!`, CSS.firefly);
+            if (this.spd === 1) { this.setSpeed(2); this.pushLog("⏩ 남은 레이스 자동 2배속"); }
           }
           break;
         }
@@ -717,8 +647,7 @@ export default class RaceScene extends Phaser.Scene {
           this.time.delayedCall(1400, () => {
             this.scene.start("Result", {
               rankings: rankings(this.race).map((f) => ({
-                id: f.id, name: f.name, colorCss: f.colorCss,
-                finishOrder: f.finishOrder,
+                id: f.id, name: f.displayName, colorCss: f.colorCss, finishOrder: f.finishOrder,
               })),
               players: this.players,
             });
@@ -730,79 +659,98 @@ export default class RaceScene extends Phaser.Scene {
   }
 
   /* ───────── 진행 ───────── */
-
-  updateCamera() {
+  updateCamera(delta) {
     const cam = this.cameras.main;
-    let targetX;
-    let targetY;
-    let targetZoom;
-
-    if (this.zoomedOut) {
-      targetX = TRACK_PANEL_W / 2;
-      targetY = TRACK_TOP + TRACK_H / 2;
-      targetZoom = ZOOM_OUT;
-    } else if (this.spotlight && this.time.now < this.spotlight.until) {
-      const f = this.spotlight.frog;
-      targetX = xFor(this.disp[f.id]);
-      targetY = this.laneY(f.lane);
-      targetZoom = ZOOM_SPOTLIGHT;
-    } else {
-      this.spotlight = null;
-      const leader = currentRanking(this.race)[0];
-      targetX = xFor(this.disp[leader.id]) + LOOKAHEAD;
-      targetY = this.laneY(leader.lane);
-      targetZoom = ZOOM_BASE;
-    }
-
-    this.camFocus.x += (targetX - this.camFocus.x) * CAM_LERP;
-    this.camFocus.y += (targetY - this.camFocus.y) * CAM_LERP;
-    cam.zoom += (targetZoom - cam.zoom) * CAM_LERP;
-    cam.centerOn(this.camFocus.x, this.camFocus.y);
+    // 선두 찾기 — 매 프레임 배열 정렬/생성(GC) 없이 단일 패스
+    let leader = this.race.frogs[0];
+    for (const f of this.race.frogs) if (f.pos > leader.pos) leader = f;
+    const targetX = xFor(this.disp[leader.uid]) + LOOKAHEAD;
+    // delta 기반 지수 감쇠 — 프레임레이트가 흔들려도 추적 속도가 일정(부드러움)
+    const k = 1 - Math.exp(-7 * (delta / 1000));
+    this.camFocusX += (targetX - this.camFocusX) * k;
+    cam.centerOn(this.camFocusX, GAME_H / 2);
+    // 줌은 매 프레임 건드리지 않음(셰이더 재샘플 떨림 방지) — 토글 시 zoomTo로만 변경
   }
 
   updateMinimap() {
-    const span = this.mmTrackX1 - this.mmTrackX0;
+    const span = this.mmX1 - this.mmX0;
     this.race.frogs.forEach((f) => {
-      const dot = this.miniDots[f.id];
-      const t = Math.min(1, this.disp[f.id] / RULES.TRACK);
-      dot.x = this.mmTrackX0 + t * span;
+      const t = Math.min(1, this.disp[f.uid] / RULES.TRACK);
+      this.miniDots[f.uid].x = this.mmX0 + t * span;
     });
+    const cam = this.cameras.main;
+    const viewW = (TRACK_PANEL_W * this.rs) / cam.zoom;
+    const t0 = Phaser.Math.Clamp(cam.scrollX / WORLD_W, 0, 1);
+    const t1 = Phaser.Math.Clamp((cam.scrollX + viewW) / WORLD_W, 0, 1);
+    this.mmViewport.setX(this.mmX0 + t0 * span);
+    this.mmViewport.width = Math.max(6, (t1 - t0) * span);
   }
 
   update(time, delta) {
+    // FPS 표시기는 카운트다운/레이스 무관하게 갱신 (0.25초 주기)
+    this.fpsClock += delta;
+    if (this.fpsClock > 250) {
+      this.fpsClock = 0;
+      const fps = this.game.loop.actualFps;
+      if (this.running && fps > 5) this.fpsMin = Math.min(this.fpsMin, fps);
+      const minStr = this.fpsMin < 900 ? ` (min ${Math.round(this.fpsMin)})` : "";
+      this.fpsText.setText(`FPS ${Math.round(fps)}${minStr}`);
+      this.fpsText.setColor(fps >= 55 ? "#7FFFB0" : fps >= 40 ? CSS.firefly : CSS.pink);
+    }
+
     if (!this.running) return;
     const dt = (delta / 1000) * this.spd;
 
-    // 지속 전진
     this.handleEvents(tick(this.race, dt));
 
-    // 선택 이벤트 주기
     this.eventClock += delta * this.spd;
     if (this.eventClock >= RULES.EVENT_INTERVAL) {
       this.eventClock -= RULES.EVENT_INTERVAL;
       this.handleEvents(selectionEvent(this.race));
     }
 
-    // 렌더링: 표시 위치를 실제 위치로 부드럽게 추적
+    const sx = this.cameras.main.scrollX;
+    if (this.trees) this.trees.tilePositionX = sx * 0.15;
+    if (this.reeds) this.reeds.tilePositionX = sx * 0.35;
+    if (this.fore) this.fore.tilePositionX = sx * 0.85;
+
     for (const f of this.race.frogs) {
-      const cur = this.disp[f.id];
-      this.disp[f.id] = cur + (f.pos - cur) * Math.min(1, dt * 5);
-      const spr = this.sprites[f.id];
-      spr.x = xFor(this.disp[f.id]);
+      const cur = this.disp[f.uid];
+      const moved = f.pos - cur;
+      this.disp[f.uid] = cur + moved * Math.min(1, dt * 5);
+      const spr = this.sprites[f.uid];
+      const s = this.laneScale(f.lane);
+      spr.x = xFor(this.disp[f.uid]);
       const ly = this.laneY(f.lane);
-      spr.y = f.finished
-        ? ly
-        : ly - Math.abs(Math.sin(time / 180 + f.lane * 1.3)) * 4;
+
+      // 점프 애니메이션 (이동 중 빠르게, 정지/골인 시 느리게/멈춤)
+      const moving = !f.finished && moved > 0.004;
+      spr.hopPhase += dt * (moving ? 10 : 3.2);
+      const lift = f.finished ? 0 : Math.abs(Math.sin(spr.hopPhase));
+      spr.y = ly - lift * 7 * s;
+
+      if (spr.isProc) {
+        if (f.finished) spr.setScale(spr.baseScale);
+        else {
+          spr.setScale(
+            spr.baseScale * (1 - 0.10 * lift + 0.10 * (1 - lift)),
+            spr.baseScale * (1 + 0.14 * lift - 0.08 * (1 - lift))
+          );
+        }
+      } else if (f.finished && spr.anims.isPlaying) {
+        spr.anims.stop();
+        spr.setFrame(0);
+      }
+
+      spr.shadowObj.x = spr.x;
+      spr.shadowObj.setScale(spr.shadowObj.baseS * (1 - lift * 0.3));
     }
+    // (성능) 매 프레임 8마리 물보라 분사는 비용이 커서 제거 — 선택/스킬 등 이벤트 시에만 분사
 
     this.updateMinimap();
-    this.updateCamera();
+    this.updateCamera(delta);
 
-    // 순위 갱신 (250ms 주기)
     this.rankClock += delta;
-    if (this.rankClock > 250) {
-      this.rankClock = 0;
-      this.updateRanks();
-    }
+    if (this.rankClock > 250) { this.rankClock = 0; this.updateRanks(); }
   }
 }

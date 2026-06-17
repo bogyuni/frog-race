@@ -1,21 +1,51 @@
 import Phaser from "phaser";
 import { CSS, FONT, GAME_W, CHARACTERS, RULES } from "../constants.js";
 import { ensureFrogTextures } from "../frogTexture.js";
-import { makeButton } from "../ui.js";
+import { makeButton, applyHiDPI } from "../ui.js";
 import { sound } from "../sound.js";
 
-// 참가자 등록: 인원 선택 → 순서대로 개구리 선택 → 레이스 시작
+// 로비: 모드 선택 → (A) 참가자 등록(각자 응원) 또는 (B) 단일 개구리 레이스
 export default class LobbyScene extends Phaser.Scene {
   constructor() {
     super("Lobby");
   }
 
   create() {
+    applyHiDPI(this);
     ensureFrogTextures(this, CHARACTERS);
     this.players = [];
     this.playerCount = 0;
+    this.soloCount = 5;
     this.stepObjects = [];
-    this.showCountStep();
+    this.showModeStep();
+  }
+
+  /* ── 0단계: 모드 선택 ── */
+  showModeStep() {
+    this.clearStep();
+    const cx = GAME_W / 2;
+    this.track(
+      this.add.text(cx, 86, "레이스 모드 선택", {
+        fontFamily: FONT, fontSize: "42px", color: CSS.firefly, fontStyle: "700",
+      }).setOrigin(0.5),
+      makeButton(this, cx, 300, 580, 104, "👥 참가자 등록 — 각자 다른 개구리 응원", () => {
+        this.players = [];
+        this.showCountStep();
+      }, { fontSize: "26px" }),
+      this.add.text(cx, 364, "여러 명이 각자 개구리를 골라 응원합니다 (참가자 수만큼 출전)", {
+        fontFamily: FONT, fontSize: "16px", color: CSS.dim,
+      }).setOrigin(0.5),
+      makeButton(this, cx, 470, 580, 104, "🐸 단일 개구리 — 같은 종 여러 마리 레이스", () => {
+        this.focusedId = CHARACTERS[0].id;
+        this.showSoloStep();
+      }, { ghost: true, fontSize: "26px" }),
+      this.add.text(cx, 534, "개구리 1종을 골라 같은 종 여러 마리가 달립니다 (예: 청개구리 5마리)", {
+        fontFamily: FONT, fontSize: "16px", color: CSS.dim,
+      }).setOrigin(0.5),
+      makeButton(this, cx, 632, 280, 56, "← 처음으로", () => this.scene.start("Title"), {
+        ghost: true, fontSize: "22px",
+      })
+    );
   }
 
   clearStep() {
@@ -73,9 +103,84 @@ export default class LobbyScene extends Phaser.Scene {
           align: "center", lineSpacing: 8,
         })
         .setOrigin(0.5),
-      makeButton(this, cx, 600, 280, 56, "← 처음으로", () => this.scene.start("Title"), {
+      makeButton(this, cx, 600, 280, 56, "← 모드 선택", () => this.showModeStep(), {
         ghost: true, fontSize: "22px",
       })
+    );
+  }
+
+  /* ── 단일 개구리 모드: 개구리 1종 + 마리 수 선택 ──
+     좌: 포커스된 개구리 큰 미리보기 / 우: 2x4 종류 선택 그리드
+     하단: 마리 수(2~8) + 시작 */
+  showSoloStep() {
+    this.clearStep();
+    if (!this.focusedId) this.focusedId = CHARACTERS[0].id;
+    const focused = CHARACTERS.find((c) => c.id === this.focusedId);
+
+    const LEFT_CX = GAME_W * 0.25;
+    const RIGHT_X = GAME_W / 2;
+    const RIGHT_W = GAME_W / 2;
+    const CONTENT_TOP = 88;
+    const CONTENT_BOTTOM = 560;
+
+    this.track(
+      this.add.text(GAME_W / 2, 32, "단일 개구리 레이스 — 종류와 마리 수를 고르세요", {
+        fontFamily: FONT, fontSize: "26px", color: CSS.firefly, fontStyle: "700",
+      }).setOrigin(0.5),
+      this.add.text(GAME_W / 2, 62, "같은 종 여러 마리가 레인을 나눠 달립니다 (서는 순서는 랜덤)", {
+        fontFamily: FONT, fontSize: "16px", color: CSS.dim,
+      }).setOrigin(0.5)
+    );
+
+    // 좌측 미리보기
+    this.track(
+      this.add.rectangle(LEFT_CX, (CONTENT_TOP + CONTENT_BOTTOM) / 2, GAME_W / 2 - 24, CONTENT_BOTTOM - CONTENT_TOP, 0x16382f).setStrokeStyle(2, 0x1e4a3d),
+      this.add.image(LEFT_CX, CONTENT_TOP + 120, `frog-${focused.id}`).setScale(3.0),
+      this.add.text(LEFT_CX, CONTENT_TOP + 230, focused.name, { fontFamily: FONT, fontSize: "38px", color: focused.colorCss, fontStyle: "700" }).setOrigin(0.5),
+      this.add.text(LEFT_CX, CONTENT_TOP + 280, `${focused.skillType === "active" ? "🔶" : "🔷"} ${focused.skillName}`, { fontFamily: FONT, fontSize: "22px", color: CSS.cream }).setOrigin(0.5),
+      this.add.text(LEFT_CX, CONTENT_TOP + 322, focused.skillDesc, { fontFamily: FONT, fontSize: "20px", color: CSS.dim, align: "center", wordWrap: { width: GAME_W / 2 - 80 }, lineSpacing: 8 }).setOrigin(0.5, 0)
+    );
+
+    // 우측 2x4 종류 선택
+    const GRID_PAD = 24, GRID_GAP = 14;
+    const cellW = (RIGHT_W - GRID_PAD * 2 - GRID_GAP) / 2;
+    const cellH = (CONTENT_BOTTOM - CONTENT_TOP - GRID_GAP * 3) / 4;
+    CHARACTERS.forEach((c, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const x0 = RIGHT_X + GRID_PAD + col * (cellW + GRID_GAP);
+      const y0 = CONTENT_TOP + row * (cellH + GRID_GAP);
+      const isFocused = c.id === this.focusedId;
+      const card = this.add.rectangle(x0 + cellW / 2, y0 + cellH / 2, cellW, cellH, isFocused ? 0x1e4a3d : 0x16382f).setStrokeStyle(isFocused ? 3 : 2, isFocused ? 0xffd95e : 0x1e4a3d).setInteractive({ useHandCursor: true });
+      card.on("pointerup", () => { sound.click(); this.focusedId = c.id; this.showSoloStep(); });
+      this.track(
+        card,
+        this.add.text(x0 + 16, y0 + 12, c.name, { fontFamily: FONT, fontSize: "26px", fontStyle: "700", color: isFocused ? CSS.firefly : CSS.cream }),
+        this.add.text(x0 + 16, y0 + cellH - 34, `${c.skillType === "active" ? "🔶" : "🔷"} ${c.skillName}`, { fontFamily: FONT, fontSize: "15px", color: c.colorCss })
+      );
+    });
+
+    // 하단: 마리 수 + 시작/뒤로
+    const counts = [2, 3, 4, 5, 6, 7, 8];
+    const bSize = 56, bGap = 10;
+    const startX = LEFT_CX - (counts.length * bSize + (counts.length - 1) * bGap) / 2 + bSize / 2;
+    this.track(this.add.text(LEFT_CX, CONTENT_BOTTOM + 24, "마리 수", { fontFamily: FONT, fontSize: "18px", color: CSS.cream }).setOrigin(0.5));
+    counts.forEach((k, i) => {
+      const sel = this.soloCount === k;
+      this.track(makeButton(this, startX + i * (bSize + bGap), CONTENT_BOTTOM + 70, bSize, bSize, `${k}`, () => {
+        this.soloCount = k;
+        this.showSoloStep();
+      }, { fontSize: "24px", ghost: !sel }));
+    });
+
+    this.track(
+      makeButton(this, RIGHT_X + RIGHT_W / 2, CONTENT_BOTTOM + 100, 460, 64, `🚩 ${focused.name} ${this.soloCount}마리 레이스 시작`, () => {
+        this.registry.set("mode", "solo");
+        this.registry.set("soloFrog", this.focusedId);
+        this.registry.set("soloCount", this.soloCount);
+        this.registry.set("players", []);
+        this.scene.start("Race");
+      }, { fontSize: "24px" }),
+      makeButton(this, LEFT_CX, CONTENT_BOTTOM + 130, 240, 50, "← 모드 선택", () => this.showModeStep(), { ghost: true, fontSize: "18px" })
     );
   }
 
@@ -245,7 +350,7 @@ export default class LobbyScene extends Phaser.Scene {
       makeButton(this, cx, 698, 360, 44, "다시 등록", () => {
         this.players = [];
         this.focusedId = null;
-        this.showCountStep();
+        this.showModeStep();
       }, { ghost: true, fontSize: "18px" })
     );
   }
