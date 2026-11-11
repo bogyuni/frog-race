@@ -18,7 +18,7 @@
 // ───────────────────────────────────────────────────────────────────────────
 
 export const SPRITE_ASSETS = [
-  // { key: "frog-tree", path: "sprites/frogs/tree.png", w: 64, h: 56, frames: 2 },
+  { key: "frog-tree", path: "sprites/frogs/tree.png", w: 64, h: 56, frames: 2 },
 ];
 
 // 개구리 8종 — 프레임 1장 64x56, 2프레임(앉음/점프) 권장 → 스트립 128x56.
