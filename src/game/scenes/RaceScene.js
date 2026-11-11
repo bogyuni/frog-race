@@ -299,8 +299,10 @@ export default class RaceScene extends Phaser.Scene {
       );
       shadow.baseS = s * 0.5;
       shadow.setScale(shadow.baseS).setAlpha(0.35);
+      // Phaser 4: Image는 anims/play()가 없다 — 애니메이션 재생하려면 Sprite로 생성.
+      // (프롤래마: add.image + play() → TypeError → 씬 크래시. v0.25 수정)
       const spr = this.addWorld(
-        this.add.image(xFor(0), this.laneY(f.lane), `frog-${f.id}`).setScale(s).setDepth(20 + f.lane + 0.5)
+        this.add.sprite(xFor(0), this.laneY(f.lane), `frog-${f.id}`).setScale(s).setDepth(20 + f.lane + 0.5)
       );
       const animKey = `hop-${f.id}`;
       spr.baseScale = s;

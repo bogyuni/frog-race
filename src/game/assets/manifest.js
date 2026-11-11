@@ -19,6 +19,13 @@
 
 export const SPRITE_ASSETS = [
   { key: "frog-tree", path: "sprites/frogs/tree.png", w: 64, h: 56, frames: 2 },
+  { key: "frog-toad", path: "sprites/frogs/toad.png", w: 64, h: 56, frames: 2 },
+  { key: "frog-maeng", path: "sprites/frogs/maeng.png", w: 64, h: 56, frames: 2 },
+  { key: "frog-rain", path: "sprites/frogs/rain.png", w: 64, h: 56, frames: 2 },
+  { key: "frog-horn", path: "sprites/frogs/horn.png", w: 64, h: 56, frames: 2 },
+  { key: "frog-fire", path: "sprites/frogs/fire.png", w: 64, h: 56, frames: 2 },
+  { key: "frog-claw", path: "sprites/frogs/claw.png", w: 64, h: 56, frames: 2 },
+  { key: "frog-wood", path: "sprites/frogs/wood.png", w: 64, h: 56, frames: 2 },
 ];
 
 // 개구리 8종 — 프레임 1장 64x56, 2프레임(앉음/점프) 권장 → 스트립 128x56.
